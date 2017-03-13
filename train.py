@@ -6,6 +6,7 @@ from torch import cuda
 from torch.autograd import Variable
 import math
 import time
+from onmt.modules.discriminator import Discriminator
 
 parser = argparse.ArgumentParser(description='train.py')
 
@@ -95,6 +96,10 @@ parser.add_argument('-log_interval', type=int, default=50,
 # parser.add_argument('-seed', type=int, default=3435,
 #                     help="Seed for random initialization")
 
+# domain adaptation
+parser.add_argument('-adapt', action='store_true',
+                    help='Domain Adaptation')
+
 opt = parser.parse_args()
 opt.cuda = len(opt.gpus)
 
@@ -153,7 +158,7 @@ def eval(model, criterion, data):
     return total_loss / total_words
 
 
-def trainModel(model, trainData, validData, dataset, optim):
+def trainModel(model, trainData, validData, domainData, dataset, optim):
     print(model)
     model.train()
     if optim.last_ppl is None:
@@ -180,7 +185,12 @@ def trainModel(model, trainData, validData, dataset, optim):
             batch = [x.transpose(0, 1) for x in batch] # must be batch first for gather/scatter in DataParallel
 
             model.zero_grad()
-            outputs = model(batch)
+            if opt.adapt:
+                domainBatch = domainData[batchIdx][0]
+                domainBatch = [domainBatch.transpose(0, 1), domainData[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
+                outputs = model(batch, domainBatch)
+            else:
+                outputs = model(batch)
             targets = batch[1][:, 1:]  # exclude <s> from targets
             loss, gradOutput = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
@@ -242,11 +252,18 @@ def main():
 
     dataset = torch.load(opt.data)
 
+    # type(dataset) = <type 'dict'>
     trainData = onmt.Dataset(dataset['train']['src'],
                              dataset['train']['tgt'], opt.batch_size, opt.cuda)
     validData = onmt.Dataset(dataset['valid']['src'],
                              dataset['valid']['tgt'], opt.batch_size, opt.cuda)
 
+    domainData = None
+    if opt.adapt:
+        assert('domain' in dataset)
+        domainData = onmt.Dataset(dataset['domain']['src'], None, 
+                                  opt.batch_size, opt.cuda)
+        
     dicts = dataset['dicts']
     print(' * vocabulary size. source = %d; target = %d' %
           (dicts['src'].size(), dicts['tgt'].size()))
@@ -264,7 +281,11 @@ def main():
             nn.LogSoftmax())
         if opt.cuda > 1:
             generator = nn.DataParallel(generator, device_ids=opt.gpus)
-        model = onmt.Models.NMTModel(encoder, decoder, generator)
+        # Domain Adaptation
+        discriminator = None
+        if opt.adapt:
+            discriminator = Discriminator(opt.word_vec_size)
+        model = onmt.Models.NMTModel(encoder, decoder, generator, discriminator)
         if opt.cuda > 1:
             model = nn.DataParallel(model, device_ids=opt.gpus)
         if opt.cuda:
@@ -296,7 +317,7 @@ def main():
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)
 
-    trainModel(model, trainData, validData, dataset, optim)
+    trainModel(model, trainData, validData, domainData, dataset, optim)
 
 
 if __name__ == "__main__":
