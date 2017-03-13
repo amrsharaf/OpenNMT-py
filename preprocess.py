@@ -19,6 +19,9 @@ parser.add_argument('-valid_src', required=True,
                     help="Path to the validation source data")
 parser.add_argument('-valid_tgt', required=True,
                      help="Path to the validation target data")
+# For domain adaptation
+parser.add_argument('-domain_src', required=False,
+                     help="Path to in-domain source data")
 
 parser.add_argument('-save_data', required=True,
                     help="Output file for the prepared data")
@@ -151,8 +154,10 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
 def main():
 
     dicts = {}
+    # type(dicts['src']) = <class 'onmt.Dict.Dict'>
     dicts['src'] = initVocabulary('source', opt.train_src, opt.src_vocab,
                                   opt.src_vocab_size)
+    # type(dicts['tgt']) = <class 'onmt.Dict.Dict'>
     dicts['tgt'] = initVocabulary('target', opt.train_tgt, opt.tgt_vocab,
                                   opt.tgt_vocab_size)
 
@@ -166,6 +171,7 @@ def main():
     valid['src'], valid['tgt'] = makeData(opt.valid_src, opt.valid_tgt,
                                     dicts['src'], dicts['tgt'])
 
+    
     if opt.src_vocab is None:
         saveVocabulary('source', dicts['src'], opt.save_data + '.src.dict')
     if opt.tgt_vocab is None:
@@ -176,8 +182,15 @@ def main():
     save_data = {'dicts': dicts,
                  'train': train,
                  'valid': valid}
-    torch.save(save_data, opt.save_data + '-train.pt')
 
+    # domain adaptation source data
+    domain = {}
+    if opt.domain_src is not None:
+        domain['src'], _ = makeData(opt.domain_src, opt.domain_src, 
+                                       dicts['src'], dicts['tgt'])
+        save_data['domain'] = domain
+
+    torch.save(save_data, opt.save_data + '-train.pt')
 
 if __name__ == "__main__":
     main()
