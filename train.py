@@ -30,12 +30,6 @@ parser.add_argument('-rnn_size', type=int, default=500,
                     help='Size of LSTM hidden states')
 parser.add_argument('-word_vec_size', type=int, default=500,
                     help='Word embedding sizes')
-parser.add_argument('-input_feed', type=int, default=1,
-                    help="""Feed the context vector at each time step as
-                    additional input (via concatenation with the word
-                    embeddings) to the decoder.""")
-# parser.add_argument('-residual',   action="store_true",
-#                     help="Add residual connections between RNN layers.")
 parser.add_argument('-brnn', action='store_true',
                     help='Use a bidirectional encoder')
 parser.add_argument('-brnn_merge', default='concat',
@@ -93,6 +87,7 @@ parser.add_argument('-gpus', default=[], nargs='+', type=int,
 
 parser.add_argument('-log_interval', type=int, default=50,
                     help="Print stats at this interval.")
+# TODO: why is this commented?!
 # parser.add_argument('-seed', type=int, default=3435,
 #                     help="Seed for random initialization")
 
@@ -111,36 +106,7 @@ if torch.cuda.is_available() and not opt.cuda:
 if opt.cuda:
     cuda.set_device(opt.gpus[0])
 
-def NMTCriterion(vocabSize):
-    weight = torch.ones(vocabSize)
-    weight[onmt.Constants.PAD] = 0
-    crit = nn.NLLLoss(weight, size_average=False)
-    if opt.cuda:
-        crit.cuda()
-    return crit
-
-
-def memoryEfficientLoss(outputs, targets, generator, crit, eval=False):
-    # compute generations one piece at a time
-    loss = 0
-    outputs = Variable(outputs.data, requires_grad=(not eval), volatile=eval).contiguous()
-
-    batch_size = outputs.size(1)
-    outputs_split = torch.split(outputs, opt.max_generator_batches)
-    targets_split = torch.split(targets.contiguous(), opt.max_generator_batches)
-    for out_t, targ_t in zip(outputs_split, targets_split):
-        out_t = out_t.view(-1, out_t.size(2))
-        pred_t = generator(out_t)
-        loss_t = crit(pred_t, targ_t.view(-1))
-        loss += loss_t.data[0]
-        if not eval:
-            loss_t.div(batch_size).backward()
-
-    grad_output = None if outputs.grad is None else outputs.grad.data
-    return loss, grad_output
-
-
-def eval(model, criterion, data):
+def eval(model, data):
     total_loss = 0
     total_words = 0
 
@@ -149,9 +115,6 @@ def eval(model, criterion, data):
         batch = [x.transpose(0, 1) for x in data[i]] # must be batch first for gather/scatter in DataParallel
         outputs = model(batch)  # FIXME volatile
         targets = batch[1][:, 1:]  # exclude <s> from targets
-        loss, _ = memoryEfficientLoss(
-                outputs, targets, model.generator, criterion, eval=True)
-        total_loss += loss
         total_words += targets.data.ne(onmt.Constants.PAD).sum()
 
     model.train()
@@ -165,8 +128,10 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
         for p in model.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
 
-    # define criterion of each GPU
-    criterion = NMTCriterion(dataset['dicts']['tgt'].size())
+    
+    discriminator_criterion = None
+    if opt.adapt:
+        discriminator_criterion = nn.BCELoss()
 
     start_time = time.time()
     def trainEpoch(epoch):
@@ -188,20 +153,20 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
             if opt.adapt:
                 domainBatch = domainData[batchIdx][0]
                 domainBatch = [domainBatch.transpose(0, 1), domainData[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
-                outputs = model(batch, domainBatch)
-            else:
-                outputs = model(batch)
-            targets = batch[1][:, 1:]  # exclude <s> from targets
-            loss, gradOutput = memoryEfficientLoss(
-                    outputs, targets, model.generator, criterion)
+                old_domain, new_domain = model(batch, domainBatch)
+                discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
+                discriminator_targets[:] = 0.0
+                discriminator_targets[:len(old_domain)] = 1.0
+                discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
+                print 'loss: ', discriminator_loss.data
+                discriminator_loss.backward()
 
-            outputs.backward(gradOutput)
+            targets = batch[1][:, 1:]  # exclude <s> from targets
+
 
             # update the parameters
             grad_norm = optim.step()
 
-            report_loss += loss
-            total_loss += loss
             report_src_words += batch[0].data.ne(onmt.Constants.PAD).sum()
             num_words = targets.data.ne(onmt.Constants.PAD).sum()
             total_words += num_words
@@ -226,7 +191,7 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
         print('Train perplexity: %g' % math.exp(min(train_loss, 100)))
 
         #  (2) evaluate on the validation set
-        valid_loss = eval(model, criterion, validData)
+        valid_loss = eval(model, validData)
         valid_ppl = math.exp(min(valid_loss, 100))
         print('Validation perplexity: %g' % valid_ppl)
 
@@ -245,9 +210,7 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
         torch.save(checkpoint,
                    '%s_e%d_%.2f.pt' % (opt.save_model, epoch, valid_ppl))
 
-
 def main():
-
     print("Loading data from '%s'" % opt.data)
 
     dataset = torch.load(opt.data)
@@ -275,17 +238,12 @@ def main():
 
     if opt.train_from is None:
         encoder = onmt.Models.Encoder(opt, dicts['src'])
-        decoder = onmt.Models.Decoder(opt, dicts['tgt'])
-        generator = nn.Sequential(
-            nn.Linear(opt.rnn_size, dicts['tgt'].size()),
-            nn.LogSoftmax())
-        if opt.cuda > 1:
-            generator = nn.DataParallel(generator, device_ids=opt.gpus)
         # Domain Adaptation
         discriminator = None
+        # TODO: This will cause a bug if we didn't backprop through the discriminator
         if opt.adapt:
-            discriminator = Discriminator(opt.word_vec_size)
-        model = onmt.Models.NMTModel(encoder, decoder, generator, discriminator)
+            discriminator = Discriminator(opt.word_vec_size * opt.layers)
+        model = onmt.Models.NMTModel(encoder, discriminator)
         if opt.cuda > 1:
             model = nn.DataParallel(model, device_ids=opt.gpus)
         if opt.cuda:
@@ -293,7 +251,6 @@ def main():
         else:
             model.cpu()
 
-        model.generator = generator
 
         for p in model.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
@@ -318,7 +275,6 @@ def main():
     print('* number of parameters: %d' % nParams)
 
     trainModel(model, trainData, validData, domainData, dataset, optim)
-
 
 if __name__ == "__main__":
     main()
