@@ -178,6 +178,11 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
         total_words, report_words = 0, 0
         report_src_words = 0
         start = time.time()
+        
+        discriminator_criterion = None
+        if opt.adapt:
+            discriminator_criterion = nn.BCELoss()
+                
         for i in range(len(trainData)):
 
             batchIdx = batchOrder[i] if epoch >= opt.curriculum else i
@@ -186,9 +191,18 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
 
             model.zero_grad()
             if opt.adapt:
-                domainBatch = domainData[batchIdx][0]
-                domainBatch = [domainBatch.transpose(0, 1), domainData[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
-                outputs = model(batch, domainBatch)
+                domain_batch = domainData[batchIdx][0]
+                domain_batch = [domain_batch.transpose(0, 1), domainData[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
+                outputs, old_domain, new_domain = model(batch, domain_batch)
+                
+                discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
+                discriminator_targets[:] = 0.0
+                discriminator_targets[:len(old_domain)] = 1.0
+                discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
+                print 'loss: ', discriminator_loss.data
+                discriminator_loss.backward()                
+                
+                
             else:
                 outputs = model(batch)
             targets = batch[1][:, 1:]  # exclude <s> from targets
@@ -284,7 +298,7 @@ def main():
         # Domain Adaptation
         discriminator = None
         if opt.adapt:
-            discriminator = Discriminator(opt.word_vec_size)
+            discriminator = Discriminator(opt.word_vec_size  * opt.layers)
         model = onmt.Models.NMTModel(encoder, decoder, generator, discriminator)
         if opt.cuda > 1:
             model = nn.DataParallel(model, device_ids=opt.gpus)
