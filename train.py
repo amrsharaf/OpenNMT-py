@@ -213,6 +213,7 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
             # We do the domain adaptation backward call here
             if opt.adapt:
                 outputs.backward(gradOutput, retain_variables=True)
+                model.zero_grad()
                 discriminator_loss.backward()
             else:
                 outputs.backward(gradOutput)
@@ -281,8 +282,9 @@ def main():
 
     domainData = None
     if opt.adapt:
-        assert('domain' in dataset)
-        domainData = onmt.Dataset(dataset['domain']['src'], None, 
+        assert('domain_train' in dataset)
+        assert('domain_valid' in dataset)
+        domainData = onmt.Dataset(dataset['domain_train']['src'], None, 
                                   opt.batch_size, opt.cuda)
         
     dicts = dataset['dicts']
