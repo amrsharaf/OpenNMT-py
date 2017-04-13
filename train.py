@@ -158,7 +158,7 @@ def eval(model, criterion, data):
     return total_loss / total_words
 
 
-def trainModel(model, trainData, validData, domainData, dataset, optim):
+def trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim):
     print(model)
     model.train()
     if optim.last_ppl is None:
@@ -191,8 +191,8 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
 
             model.zero_grad()
             if opt.adapt:
-                domain_batch = domainData[batchIdx][0]
-                domain_batch = [domain_batch.transpose(0, 1), domainData[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
+                domain_batch = domain_train[batchIdx][0]
+                domain_batch = [domain_batch.transpose(0, 1), domain_train[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
                 outputs, old_domain, new_domain = model(batch, domain_batch)
                 
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
@@ -280,12 +280,16 @@ def main():
     validData = onmt.Dataset(dataset['valid']['src'],
                              dataset['valid']['tgt'], opt.batch_size, opt.cuda)
 
-    domainData = None
+    domain_train = None
+    domain_valid = None
     if opt.adapt:
         assert('domain_train' in dataset)
         assert('domain_valid' in dataset)
-        domainData = onmt.Dataset(dataset['domain_train']['src'], None, 
+        domain_train = onmt.Dataset(dataset['domain_train']['src'], None, 
                                   opt.batch_size, opt.cuda)
+        domain_valid = onmt.Dataset(dataset['domain_valid']['src'], None, 
+                                  opt.batch_size, opt.cuda)
+        
         
     dicts = dataset['dicts']
     print(' * vocabulary size. source = %d; target = %d' %
@@ -340,7 +344,7 @@ def main():
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)
 
-    trainModel(model, trainData, validData, domainData, dataset, optim)
+    trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim)
 
 
 if __name__ == "__main__":
