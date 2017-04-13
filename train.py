@@ -197,8 +197,8 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
             model.zero_grad()
             if opt.adapt:
-                domain_batch = domain_train[batchIdx][0]
-                domain_batch = [domain_batch.transpose(0, 1), domain_train[batchIdx][1]]  # must be batch first for gather/scatter in DataParallel
+                domain_batch = domain_train[batchIdx]
+                domain_batch = domain_batch[0].transpose(0, 1) # must be batch first for gather/scatter in DataParallel
                 outputs, old_domain, new_domain = model(batch, domain_batch)
                 
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)

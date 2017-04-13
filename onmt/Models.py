@@ -175,8 +175,7 @@ class NMTModel(nn.Module):
         if domain_batch is not None:
             # TODO: make sure this is the correct batch_size
             batch_size = src.size()[0]
-            # TODO: what is domain_batch[1
-            enc_hidden_adapt, _ = self.encoder(domain_batch[0])
+            enc_hidden_adapt, _ = self.encoder(domain_batch)
             # TODO: training flag, and maybe concatenate the two batches!?
             old_domain = self.discriminator(enc_hidden[1].transpose(0,1).contiguous().view(batch_size,-1), True)
             # This should give a label of 0
