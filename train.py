@@ -200,11 +200,15 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 domain_batch = domain_train[batchIdx]
                 domain_batch = domain_batch[0].transpose(0, 1) # must be batch first for gather/scatter in DataParallel
                 outputs, old_domain, new_domain = model(batch, domain_batch)
-                
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
+                
+                if opt.cuda:
+                    discriminator_targets = discriminator_targets.cuda()
+                
                 discriminator_targets[:] = 0.0
                 discriminator_targets[:len(old_domain)] = 1.0
                 accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
+                
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
                 print 'accuracy: ', accuracy
                 print 'loss: ', discriminator_loss.data
