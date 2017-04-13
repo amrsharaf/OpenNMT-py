@@ -186,11 +186,17 @@ def main():
                  'valid': valid}
 
     # domain adaptation source data
-    domain = {}
+    domain_train = {}
+    domain_valid = {}
     if opt.domain_train_src is not None:
-        domain['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
+        domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
                                        dicts['src'], dicts['tgt'])
-        save_data['domain'] = domain
+        save_data['domain_train'] = domain_train
+        # Validation data
+        domain_valid['src'], _ = makeData(opt.domain_valid_src, opt.domain_valid_src, 
+                                       dicts['src'], dicts['tgt'])
+        save_data['domain_valid'] = domain_valid
+
 
     torch.save(save_data, opt.save_data + '-train.pt')
 
