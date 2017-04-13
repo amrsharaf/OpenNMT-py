@@ -210,7 +210,13 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
             loss, gradOutput = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
 
-            outputs.backward(gradOutput)
+            # We do the domain adaptation backward call here
+            if opt.adapt:
+                outputs.backward(gradOutput, retain_variables=True)
+                discriminator_loss.backward()
+            else:
+                outputs.backward(gradOutput)
+    
 
             # update the parameters
             grad_norm = optim.step()

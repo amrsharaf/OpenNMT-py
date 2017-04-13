@@ -171,6 +171,7 @@ class NMTModel(nn.Module):
         tgt = input[1][:, :-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         # Domain adaptation
+        old_domain = new_domain = None
         if domain_batch is not None:
             # TODO: make sure this is the correct batch_size
             batch_size = src.size()[0]
@@ -190,5 +191,9 @@ class NMTModel(nn.Module):
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
         if self.generate:
             out = self.generator(out)
-
-        return out, old_domain, new_domain
+        
+        # TODO: clean later
+        if domain_batch is not None:
+            return out, old_domain, new_domain
+        else:
+            return out
