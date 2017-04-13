@@ -200,11 +200,12 @@ def trainModel(model, trainData, validData, domainData, dataset, optim):
                 discriminator_targets[:len(old_domain)] = 1.0
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
                 print 'loss: ', discriminator_loss.data
-                discriminator_loss.backward()                
+#                 discriminator_loss.backward()                
                 
                 
             else:
                 outputs = model(batch)
+            
             targets = batch[1][:, 1:]  # exclude <s> from targets
             loss, gradOutput = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
