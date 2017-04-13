@@ -20,7 +20,9 @@ parser.add_argument('-valid_src', required=True,
 parser.add_argument('-valid_tgt', required=True,
                      help="Path to the validation target data")
 # For domain adaptation
-parser.add_argument('-domain_src', required=False,
+parser.add_argument('-domain_train_src', required=False,
+                     help="Path to in-domain source data")
+parser.add_argument('-domain_valid_src', required=False,
                      help="Path to in-domain source data")
 
 parser.add_argument('-save_data', required=True,
@@ -185,8 +187,8 @@ def main():
 
     # domain adaptation source data
     domain = {}
-    if opt.domain_src is not None:
-        domain['src'], _ = makeData(opt.domain_src, opt.domain_src, 
+    if opt.domain_train_src is not None:
+        domain['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
                                        dicts['src'], dicts['tgt'])
         save_data['domain'] = domain
 
