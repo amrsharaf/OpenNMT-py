@@ -157,7 +157,13 @@ def eval(model, criterion, data):
     model.train()
     return total_loss / total_words
 
-
+def get_accuracy(prediction, truth):
+    assert(prediction.nelement() == truth.nelement())
+    prediction[prediction < 0.5]  = 0.0
+    prediction[prediction >= 0.5] = 1.0
+    accuracy = (100.0 * prediction.eq(truth).sum()) / float(prediction.nelement())
+    return accuracy
+    
 def trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim):
     print(model)
     model.train()
@@ -198,7 +204,9 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
                 discriminator_targets[:] = 0.0
                 discriminator_targets[:len(old_domain)] = 1.0
+                accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
+                print 'accuracy: ', accuracy
                 print 'loss: ', discriminator_loss.data
 #                 discriminator_loss.backward()                
                 
