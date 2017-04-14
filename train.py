@@ -157,6 +157,27 @@ def eval(model, criterion, data):
     model.train()
     return total_loss / total_words
 
+def accuracy_eval(model, data_old, data_new):
+    model.eval()
+    for i in range(min(len(data_old),len(data_new))):
+        batch_old = [x.transpose(0, 1) for x in data_old[i]]
+        batch_new = data_new[i][0].transpose(0, 1)
+        
+        _,old_domain, new_domain = model(batch_old,batch_new)   
+        tgts = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)   
+        if opt.cuda:
+            tgts = tgts.cuda()
+        
+        tgts[:] = 0.0
+        tgts[:len(old_domain)] = 1.0
+        accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), tgts.data)  
+        print "batch_old: ", batch_old[0].size()
+        print "batch_new: ", batch_new.size()
+        print 'valid accuracy: ', accuracy, '\n'
+    return accuracy
+
+
+
 def get_accuracy(prediction, truth):
     assert(prediction.nelement() == truth.nelement())
     prediction[prediction < 0.5]  = 0.0
@@ -210,8 +231,8 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
                 
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
-                print 'accuracy: ', accuracy
-                print 'loss: ', discriminator_loss.data
+                #print 'accuracy: ', accuracy
+                #print 'loss: ', discriminator_loss.data
 #                 discriminator_loss.backward()                
                 
                 
@@ -261,6 +282,8 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
         #  (2) evaluate on the validation set
         valid_loss = eval(model, criterion, validData)
+        #model, data_old, data_new
+        valid_accuracy = accuracy_eval(model, validData, domain_valid)
         valid_ppl = math.exp(min(valid_loss, 100))
         print('Validation perplexity: %g' % valid_ppl)
 
