@@ -201,6 +201,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
         # shuffle mini batch order
         batchOrder = torch.randperm(len(trainData))
+        batchOrderAdapt = torch.randperm(len(domain_train))
 
         total_loss, report_loss = 0, 0
         total_words, report_words = 0, 0
@@ -210,16 +211,18 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         discriminator_criterion = None
         if opt.adapt:
             discriminator_criterion = nn.BCELoss()
+
                 
         for i in range(len(trainData)):
 
             batchIdx = batchOrder[i] if epoch >= opt.curriculum else i
+            batchIdxAdapt = batchOrderAdapt[i] if epoch >= opt.curriculum else i
             batch = trainData[batchIdx]
             batch = [x.transpose(0, 1) for x in batch] # must be batch first for gather/scatter in DataParallel
 
             model.zero_grad()
             if opt.adapt:
-                domain_batch = domain_train[batchIdx]
+                domain_batch = domain_train[batchIdxAdapt]
                 domain_batch = domain_batch[0].transpose(0, 1) # must be batch first for gather/scatter in DataParallel
                 outputs, old_domain, new_domain = model(batch, domain_batch)
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
