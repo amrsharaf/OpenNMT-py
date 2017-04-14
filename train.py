@@ -6,6 +6,7 @@ from torch import cuda
 from torch.autograd import Variable
 import math
 import time
+import torch.optim as optimizer
 from onmt.modules.discriminator import Discriminator
 
 parser = argparse.ArgumentParser(description='train.py')
@@ -188,9 +189,9 @@ def get_accuracy(prediction, truth):
 def trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim):
     print(model)
     model.train()
-    if optim.last_ppl is None:
-        for p in model.parameters():
-            p.data.uniform_(-opt.param_init, opt.param_init)
+    #if optim.last_ppl is None:
+    #    for p in model.parameters():
+    #        p.data.uniform_(-opt.param_init, opt.param_init)
 
     # define criterion of each GPU
     criterion = NMTCriterion(dataset['dicts']['tgt'].size())
@@ -222,7 +223,23 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 domain_batch = domain_batch[0].transpose(0, 1) # must be batch first for gather/scatter in DataParallel
                 outputs, old_domain, new_domain = model(batch, domain_batch)
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
-                
+                 
+                for old_sentence_src, old_sentence_tgt, new_sentence in zip(batch[0],batch[1],domain_batch) :
+                    old_sentence_src = [dataset['dicts']['src'].idxToLabel[x] for x in old_sentence_src.data]
+                    old_sentence_src = " ".join(old_sentence_src)
+                    print "old sentence src: ", old_sentence_src 
+                    
+                    old_sentence_tgt = [dataset['dicts']['tgt'].idxToLabel[x] for x in old_sentence_tgt.data]
+                    old_sentence_tgt = " ".join(old_sentence_tgt)
+                    print "old sentence tgt: ", old_sentence_tgt 
+
+                    new_sentence = [dataset['dicts']['src'].idxToLabel[x] for x in new_sentence.data]
+                    new_sentence = " ".join(new_sentence)
+                    print "\nnew sentence: ", new_sentence
+                    
+                    print "-------------------"
+
+
                 if opt.cuda:
                     discriminator_targets = discriminator_targets.cuda()
                 
@@ -360,11 +377,12 @@ def main():
         for p in model.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
 
-        optim = onmt.Optim(
-            model.parameters(), opt.optim, opt.learning_rate, opt.max_grad_norm,
-            lr_decay=opt.learning_rate_decay,
-            start_decay_at=opt.start_decay_at
-        )
+        #optim = onmt.Optim(
+        #    model.parameters(), opt.optim, opt.learning_rate, opt.max_grad_norm,
+        #    lr_decay=opt.learning_rate_decay,
+        #    start_decay_at=opt.start_decay_at
+        #)
+        optim = optimizer.SGD(model.parameters(), lr=0.01)
     else:
         print('Loading from checkpoint at %s' % opt.train_from)
         checkpoint = torch.load(opt.train_from)
