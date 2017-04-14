@@ -1,3 +1,4 @@
+model_*.pt
 .DS_Store
 dcgan/data
 data
