@@ -159,6 +159,15 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
     return src, tgt
 
 
+def is_not_unk(value):
+    return value != onmt.Constants.UNK
+
+def filter_unk_tensor(tensor):
+    return filter(is_not_unk, tensor)
+
+def filter_unk(tensor_list):
+    return map(filter_unk_tensor, tensor_list)
+
 def main():
 
     dicts = {}
@@ -202,15 +211,19 @@ def main():
     domain_valid = {}
     domain_test  = {}
     if opt.domain_train_src is not None:
-        # Train
+        # Tra vbin
         domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
                                        dicts['src'], dicts['tgt'])
+        domain_train['src'] = filter_unk(domain_train['src'])
+        
         # Validation data
         domain_valid['src'], _ = makeData(opt.domain_valid_src, opt.domain_valid_src, 
                                        dicts['src'], dicts['tgt'])
+        
         # Test data
         domain_test['src'], _ = makeData(opt.domain_test_src, opt.domain_test_src, 
                                        dicts['src'], dicts['tgt'])
+        
         # saving!
         save_data['domain_train'] = domain_train
         save_data['domain_valid'] = domain_valid

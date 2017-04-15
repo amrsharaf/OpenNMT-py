@@ -1,3 +1,6 @@
+generate_vw:
+	python simple_pytorch.py -d data/demo-train.pt -adapt
+
 vw_train_filtered:
 	vw --binary data/train_filtered.vw --passes 20 -c -k -f data/train.model -b 29 --affix +3,-3 --spelling _ --ngram 2 --skips 1 --loss_function logistic 
 	
