@@ -215,6 +215,15 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         print '\n\nValidation Accuracy: ', valid_accuracy
         print 'total: ', total, ' correct: ', correct
         print 'accuracy: ', correct / total, '\n\n'
+        
+def lookup_src(x, dicts=None):
+    return dicts['src'].idxToLabel[x]
+
+def convert_to_sentence(list_of_sentences,dicts):
+    lookup_partial = partial(lookup_src, dicts=dicts)
+    for sentence in list_of_sentences:
+        print "--> Len: " + str(len(sentence))
+        print "--> Src Sentence: " + str(" ".join(map(lookup_partial, sentence)))
 
 def main():
     random.seed(1234)
@@ -228,14 +237,19 @@ def main():
     
     print 'Reading data from: ', args.data
     data = torch.load(args.data)
+    dicts = data['dicts']
+    
     train_old_domain_encoded_txt, train_old_domain_encoded = load_text_data(data, 'train', args)
     train_new_domain_encoded_txt, train_new_domain_encoded = load_text_data(data, 'domain_train', args)
     valid_old_domain_encoded_txt, valid_old_domain_encoded = load_text_data(data, 'valid', args)
     valid_new_domain_encoded_txt, valid_new_domain_encoded = load_text_data(data, 'domain_valid', args)
     
-    print 'Generating vw files...'
-    process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
-    process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
+    print "testing ...."
+    convert_to_sentence(train_old_domain_encoded, dicts)
+    
+    #print 'Generating vw files...'
+    #process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
+    #process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
     
     #learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
 #    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
