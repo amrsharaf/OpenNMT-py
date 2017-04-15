@@ -1,0 +1,246 @@
+from onmt.modules.discriminator import Discriminator
+import onmt
+import torch.nn as nn
+from argparse import ArgumentParser
+import torch
+from preprocess_vw import process_sentences
+import random
+import torch
+from torch.autograd import Variable
+import torch.nn.functional as F
+import torch.optim as optim
+from torch import cuda
+from random import shuffle
+
+dtype = torch.FloatTensor
+
+
+def parse_arguments():
+    ap = ArgumentParser()
+    ap.add_argument('--data', '-d', required=True)
+    # TODO: refactor this part
+    ap.add_argument('-layers', type=int, default=2,
+                    help='Number of layers in the LSTM encoder/decoder')
+    ap.add_argument('-brnn', action='store_true',
+                    help='Use a bidirectional encoder')
+    ap.add_argument('-rnn_size', type=int, default=500,
+                    help='Size of LSTM hidden states')
+    ap.add_argument('-word_vec_size', type=int, default=500,
+                    help='Word embedding sizes')
+    ap.add_argument('-dropout', type=float, default=0.3,
+                    help='Dropout probability; applied between LSTM stacks.')
+    ap.add_argument('-pre_word_vecs_enc',
+                    help="""If a valid path is specified, then this will load
+                    pretrained word embeddings on the encoder side.
+                    See README for specific formatting instructions.""")
+    ap.add_argument('-adapt', action='store_true',
+                    help='Domain Adaptation')
+    
+    # GPU
+    ap.add_argument('-gpus', default=[], nargs='+', type=int,
+                        help="Use CUDA on the listed devices.")
+
+    ap.add_argument('-log_interval', type=int, default=50,
+                        help="Print stats at this interval.")
+    return ap.parse_args()
+
+def load_text_data(data, source, opt):
+    if len(opt.gpus) >= 1:
+        encoded_data = data[source]['src']
+        random.shuffle(encoded_data)
+        text_data = map(lambda x:' '.join([str(i) for i in x]) , encoded_data)
+    else:
+        encoded_data = data[source]['src']
+        random.shuffle(encoded_data)
+        text_data = map(lambda x:' '.join([str(i) for i in x]) , encoded_data)
+    return text_data, encoded_data
+
+from functools import partial
+
+def get_valid_accuracy(valid_old, valid_new, model, opt):
+    shuffle(valid_old)
+    shuffle(valid_new)
+    min_len = min(len(valid_old), len(valid_new))
+    valid_old = valid_old[:min_len]
+    valid_new = valid_new[:min_len]
+    sentence_to_variable_partial = partial(sentence_to_variable, opt=opt)
+    valid_old = map(sentence_to_variable_partial, valid_old)
+    valid_new = map(sentence_to_variable_partial, valid_new)
+    correct = 0
+    total   = 0
+    for pos_example, neg_example in zip(valid_old, valid_new):
+        # Positive example
+        total += 2.0
+        old_output, new_output = model(pos_example, neg_example)
+        if old_output.data[0][0] >= 0.5:
+            correct += 1.0
+        if new_output.data[0][0] < 0.5:
+            correct += 1.0
+    return correct / total
+
+def sentence_to_variable(sentence, opt=None):
+    if len(opt.gpus) >= 1:
+        return Variable(sentence.view(1, -1)).cuda()
+    else:
+        return Variable(sentence.view(1, -1))
+
+class RecurrentModel(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers):
+        super(RecurrentModel, self).__init__()
+        self.embedding = nn.Embedding(50000, input_size)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bidirectional=True)
+        self.lin = nn.Linear(input_size * num_layers * 2,1)
+         
+    def forward(self, inpt):
+        output = self.embedding(inpt)
+        output = output.transpose(0,1)
+        _, (h_n, _) = self.lstm(output)
+        output = self.lin(h_n.view(1,-1))
+        return F.sigmoid(output)
+    
+def learn_lstm(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, valid_new):
+    model = RecurrentModel(opt.word_vec_size, opt.rnn_size, opt.layers)
+    
+    if len(opt.gpus) >= 1:
+        model.cuda()
+    else:
+        model.cpu()
+    
+    criterion = nn.BCELoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    for epoch in range(100):
+        print 'Epoch: ', epoch
+        loss = 0.0
+        correct = 0.0
+        i = 0
+        total = 0.0
+        for pos_example, neg_example in zip(old_domain_encoded, new_domain_encoded):
+            # Positive example
+            print total
+            total += 1.0
+            i += 1.0
+            old_output = model(sentence_to_variable(pos_example, opt))
+            
+            
+            if old_output.data[0][0] >= 0.5:
+                correct += 1
+                
+            if len(opt.gpus) >= 1:
+                tgts_old =  Variable(torch.Tensor([1.0])).cuda()    
+            else:
+                tgts_old =  Variable(torch.Tensor([1.0])) 
+                
+            loss += criterion(old_output, tgts_old)
+            # Negative example
+            total += 1.0
+            
+            new_output = model(sentence_to_variable(neg_example, opt))
+            
+            if new_output.data[0][0] < 0.5:
+                correct += 1.0
+            if total % 100 == 0:
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                print 'iter:', i, ' | accuracy: ', correct / total
+                loss = 0.0
+            
+            if len(opt.gpus) >= 1:
+                tgts_new =  Variable(torch.Tensor([0.0])).cuda()                 
+            else:
+                tgts_new =  Variable(torch.Tensor([0.0]))
+
+            loss += criterion(new_output, tgts_new)
+        # Done with this epoch, do evaluation
+        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
+        print '\n\nValidation Accuracy: ', valid_accuracy
+        print 'total: ', total, ' correct: ', correct
+        print 'accuracy: ', correct / total, '\n\n'
+
+def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, valid_new):
+    encoder = onmt.Models.Encoder(opt, dicts['src'])
+    discriminator = Discriminator(opt.word_vec_size * opt.layers)
+    model = onmt.Models.NMTModel(encoder, discriminator)
+
+    if len(opt.gpus) >= 1:
+        model.cuda()
+    else:
+        model.cpu()
+    
+    criterion = nn.BCELoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    for epoch in range(100):
+        print 'Epoch: ', epoch
+        loss = 0.0
+        correct = 0.0
+        i = 0.0
+        total = 0.0
+        for pos_example, neg_example in zip(old_domain_encoded[:], new_domain_encoded[:]):
+            
+            # Positive example
+            #print total
+            total+=1.0
+            i += 1.0
+            old_output, new_output = model(sentence_to_variable(pos_example, opt), sentence_to_variable(neg_example, opt))
+
+            
+            if old_output.data[0][0] >= 0.5:
+                correct += 1
+                
+            if len(opt.gpus) >= 1:
+                tgts_old =  Variable(torch.Tensor([1.0])).cuda()    
+            else:
+                tgts_old =  Variable(torch.Tensor([1.0]))
+                
+            loss += criterion(old_output,tgts_old)
+            # Negative example
+            total += 1.0
+            if new_output.data[0][0] < 0.5:
+                correct += 1.0
+            if total % 100 == 0:
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                print 'iter:', i, ' | accuracy: ', correct / total
+                loss = 0.0
+                
+            if len(opt.gpus) >= 1:
+                tgts_new =  Variable(torch.Tensor([0.0])).cuda()    
+            else:
+                tgts_new =  Variable(torch.Tensor([0.0]))
+            
+            loss += criterion(new_output, tgts_new)
+        # Done with this epoch, do evaluation
+        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
+        print '\n\nValidation Accuracy: ', valid_accuracy
+        print 'total: ', total, ' correct: ', correct
+        print 'accuracy: ', correct / total, '\n\n'
+
+def main():
+    random.seed(1234)
+    args = parse_arguments()
+    
+    if torch.cuda.is_available() and not args.gpus:
+        print("WARNING: You have a CUDA device, so you should probably run with -gpus 0")
+
+    if args.gpus:
+        cuda.set_device(args.gpus[0])
+    
+    print 'Reading data from: ', args.data
+    data = torch.load(args.data)
+    train_old_domain_encoded_txt, train_old_domain_encoded = load_text_data(data, 'train', args)
+    train_new_domain_encoded_txt, train_new_domain_encoded = load_text_data(data, 'domain_train', args)
+    valid_old_domain_encoded_txt, valid_old_domain_encoded = load_text_data(data, 'valid', args)
+    valid_new_domain_encoded_txt, valid_new_domain_encoded = load_text_data(data, 'domain_valid', args)
+    
+    print 'Generating vw files...'
+    process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
+    process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
+    
+    #learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
+#    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
+    
+if __name__ == '__main__':
+    main()
+    
+    
