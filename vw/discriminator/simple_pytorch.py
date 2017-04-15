@@ -263,6 +263,7 @@ def main():
     print 'Generating vw files...'
     process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/train.vw')
     process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/valid.vw')
+    process_sentences(test_old_domain_txt, test_new_domain_txt, 'data/test.vw')
     print 'done!'
     #print 'Generating vw files...'
     #process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
