@@ -24,6 +24,8 @@ def write_to_vw_file(filename, examples):
             print >>writer, ex
 
 def process_sentences(old_sentences, new_sentences, output_file):
+    random.shuffle(old_sentences)
+    random.shuffle(new_sentences)
     old_sentences = map(lambda x: '+1 | ' + x, old_sentences)
     print old_sentences[0]
     new_sentences = map(lambda x: '-1 | ' + x, new_sentences)
@@ -37,7 +39,6 @@ def process_sentences(old_sentences, new_sentences, output_file):
     print 'Total number of examples from new domain: ', len(new_sentences)
     print 'Total number of examples: ', len(examples)
     random.shuffle(examples)
-    print ''.join([s[0] for s in examples[:50]])
     write_to_vw_file(output_file, examples)
 
 def process_files(old_file, new_file, output_file):        
