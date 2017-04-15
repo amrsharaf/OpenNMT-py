@@ -3,6 +3,7 @@ import onmt
 import torch.nn as nn
 from argparse import ArgumentParser
 import torch
+from preprocess_vw import text_to_vw
 from preprocess_vw import process_sentences
 import random
 import torch
@@ -219,11 +220,19 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
 def lookup_src(x, dicts=None):
     return dicts['src'].idxToLabel[x]
 
-def convert_to_sentence(list_of_sentences,dicts):
+def convert_single_sentence(single_sentence, dicts=None):
     lookup_partial = partial(lookup_src, dicts=dicts)
-    for sentence in list_of_sentences:
-        print "--> Len: " + str(len(sentence))
-        print "--> Src Sentence: " + str(" ".join(map(lookup_partial, sentence)))
+    return str(" ".join(map(lookup_partial, single_sentence)))
+
+def convert_to_sentence(list_of_sentences,dicts):
+    convert_partial = partial(convert_single_sentence, dicts=dicts) 
+    return map(convert_partial, list_of_sentences)
+
+def tensor_to_vw_text(source_key, data, dicts, args):
+    _, domain_encoded = load_text_data(data, source_key, args)
+    domain_txt = convert_to_sentence(domain_encoded, dicts)
+    domain_txt = map(text_to_vw, domain_txt)
+    return domain_txt
 
 def main():
     random.seed(1234)
@@ -239,14 +248,22 @@ def main():
     data = torch.load(args.data)
     dicts = data['dicts']
     
-    train_old_domain_encoded_txt, train_old_domain_encoded = load_text_data(data, 'train', args)
-    train_new_domain_encoded_txt, train_new_domain_encoded = load_text_data(data, 'domain_train', args)
-    valid_old_domain_encoded_txt, valid_old_domain_encoded = load_text_data(data, 'valid', args)
-    valid_new_domain_encoded_txt, valid_new_domain_encoded = load_text_data(data, 'domain_valid', args)
+    train_old_domain_txt = tensor_to_vw_text('train', data, dicts, args) 
+    train_new_domain_txt = tensor_to_vw_text('domain_train', data, dicts, args) 
+
+    valid_old_domain_txt = tensor_to_vw_text('valid', data, dicts, args) 
+    valid_new_domain_txt = tensor_to_vw_text('domain_valid', data, dicts, args) 
+
+    test_old_domain_txt = tensor_to_vw_text('test', data, dicts, args) 
+    test_new_domain_txt = tensor_to_vw_text('domain_test', data, dicts, args) 
+
+    # Removing vw special characters!
+    # TODO create functions for these stuff
     
-    print "testing ...."
-    convert_to_sentence(train_old_domain_encoded, dicts)
-    
+    print 'Generating vw files...'
+    process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/train.vw')
+    process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/valid.vw')
+    print 'done!'
     #print 'Generating vw files...'
     #process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
     #process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
