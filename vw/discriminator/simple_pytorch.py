@@ -84,7 +84,7 @@ def sentence_to_variable(sentence, opt=None):
         return Variable(sentence.view(1, -1)).cuda()
     else:
         return Variable(sentence.view(1, -1))
-
+        
 class RecurrentModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
         super(RecurrentModel, self).__init__()
@@ -232,7 +232,7 @@ def tensor_to_vw_text(source_key, data, dicts, args):
     _, domain_encoded = load_text_data(data, source_key, args)
     domain_txt = convert_to_sentence(domain_encoded, dicts)
     domain_txt = map(text_to_vw, domain_txt)
-    return domain_txt
+    return domain_txt, domain_encoded
 
 def main():
     random.seed(1234)
@@ -248,11 +248,11 @@ def main():
     data = torch.load(args.data)
     dicts = data['dicts']
     
-    train_old_domain_txt = tensor_to_vw_text('train', data, dicts, args) 
-    train_new_domain_txt = tensor_to_vw_text('domain_train', data, dicts, args) 
+    train_old_domain_txt, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args) 
+    train_new_domain_txt, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args) 
 
-    valid_old_domain_txt = tensor_to_vw_text('valid', data, dicts, args) 
-    valid_new_domain_txt = tensor_to_vw_text('domain_valid', data, dicts, args) 
+    valid_old_domain_txt, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args) 
+    valid_new_domain_txt, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args) 
 
     test_old_domain_txt = tensor_to_vw_text('test', data, dicts, args) 
     test_new_domain_txt = tensor_to_vw_text('domain_test', data, dicts, args) 
@@ -260,16 +260,16 @@ def main():
     # Removing vw special characters!
     # TODO create functions for these stuff
     
-    print 'Generating vw files...'
-    process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/train.vw')
-    process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/valid.vw')
-    process_sentences(test_old_domain_txt, test_new_domain_txt, 'data/test.vw')
-    print 'done!'
+    #print 'Generating vw files...'
+    #process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/train.vw')
+    #process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/valid.vw')
+    #process_sentences(test_old_domain_txt, test_new_domain_txt, 'data/test.vw')
+    #print 'done!'
     #print 'Generating vw files...'
     #process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
     #process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
     
-    #learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
+    learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
 #    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
     
 if __name__ == '__main__':

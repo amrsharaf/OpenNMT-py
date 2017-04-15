@@ -163,10 +163,11 @@ def is_not_unk(value):
     return value != onmt.Constants.UNK
 
 def filter_unk_tensor(tensor):
-    return filter(is_not_unk, tensor)
+    return torch.LongTensor(filter(is_not_unk, tensor))
 
 def filter_unk(tensor_list):
-    return map(filter_unk_tensor, tensor_list)
+    filtered_tensor_list = map(filter_unk_tensor, tensor_list)
+    return filter(lambda x: len(x) != 0, filtered_tensor_list)
 
 def main():
 
