@@ -115,10 +115,11 @@ class Decoder(nn.Module):
 
 class NMTModel(nn.Module):
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, discriminator=None):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.discriminator = discriminator
 
     def make_init_decoder_output(self, context):
         batch_size = context.size(1)
@@ -135,15 +136,58 @@ class NMTModel(nn.Module):
         else:
             return h
 
-    def forward(self, input):
+    # type(inpt) = list
+    # len(inpt) = 2
+    # type(inpt[0]) = <class 'torch.autograd.variable.Variable'>
+    # type(inpt[1]) = <class 'torch.autograd.variable.Variable'>
+    # inpt[0].size() = (batch_size, )
+    # inpt[1].size() = (batch_size, )
+    # type(enc_hidden) = tuple
+    # len(enc_hidden)  = 2
+    # enc_hidden[0]: hidden unit states for every word
+    # enc_hidden[1]: output of the encoder 
+    # type(enc_hidden[0]) = type(enc_hidden[1]) = Variable
+    # enc_hidden[0].size() = enc_hidden[1].size() = (layers, batch_size, dim)
+    # type(context) = Variable
+    # context.size() = (words, batch_size, dim)
+    def forward(self, input, domain_batch=None):
         src = input[0]
         tgt = input[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         init_output = self.make_init_decoder_output(context)
-
+        
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
-
+        
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
+        
+        debug = False
+        
+        if domain_batch is not None:
+            # TODO: make sure this is the correct batch_size
+            old_batch_size = context.size(1) 
+            src_domain_batch = domain_batch[0]
+            
+            enc_hidden_adapt,context = self.encoder(src_domain_batch)
+            new_batch_size = context.size(1)
+            enc_hidden_adapt  = (self._fix_enc_hidden(enc_hidden_adapt[0]),
+                                 self._fix_enc_hidden(enc_hidden_adapt[1]))
+            
+            if debug:
+                print "enc_hidden_adapt.size(): ", enc_hidden_adapt[1].size()
+                print "enc_hidden_adapt: ", enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1).size()
+                
+                print "enc_hidden.size(): ", enc_hidden[1].size(), '\n'
+                print "enc_hidden: ", enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1).size(), '\n'
 
+            
+            # TODO: training flag, and maybe concatenate the two batches!?
+            old_domain = self.discriminator(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1), True)
+            
+            # This should give a label of 0
+            new_domain = self.discriminator(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1), True)
+    
+            return out, old_domain, new_domain
+
+        # if not domain_batch
         return out

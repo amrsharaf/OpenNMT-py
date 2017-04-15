@@ -3,7 +3,7 @@ import onmt
 import argparse
 import torch
 
-parser = argparse.ArgumentParser(description='preprocess.py')
+parser = argparse.ArgumentParser(description='preprocess.lua')
 
 ##
 ## **Preprocess Options**
@@ -19,6 +19,11 @@ parser.add_argument('-valid_src', required=True,
                     help="Path to the validation source data")
 parser.add_argument('-valid_tgt', required=True,
                      help="Path to the validation target data")
+# For domain adaptation
+parser.add_argument('-domain_train_src', required=False,
+                     help="Path to in-domain source data")
+parser.add_argument('-domain_valid_src', required=False,
+                     help="Path to in-domain source data")
 
 parser.add_argument('-save_data', required=True,
                     help="Output file for the prepared data")
@@ -33,25 +38,24 @@ parser.add_argument('-tgt_vocab',
                     help="Path to an existing target vocabulary")
 
 
-parser.add_argument('-seq_length', type=int, default=50,
-                    help="Maximum sequence length")
+parser.add_argument('-src_seq_length', type=int, default=50,
+                    help="Maximum source sequence length")
+parser.add_argument('-tgt_seq_length', type=int, default=50,
+                    help="Maximum target sequence length")
 parser.add_argument('-shuffle',    type=int, default=1,
                     help="Shuffle data")
 parser.add_argument('-seed',       type=int, default=3435,
                     help="Random seed")
-
-parser.add_argument('-lower', action='store_true', help='lowercase data')
 
 parser.add_argument('-report_every', type=int, default=100000,
                     help="Report status every this many sentences")
 
 opt = parser.parse_args()
 
-torch.manual_seed(opt.seed)
 
 def makeVocabulary(filename, size):
     vocab = onmt.Dict([onmt.Constants.PAD_WORD, onmt.Constants.UNK_WORD,
-                       onmt.Constants.BOS_WORD, onmt.Constants.EOS_WORD], lower=opt.lower)
+                       onmt.Constants.BOS_WORD, onmt.Constants.EOS_WORD])
 
     with open(filename) as f:
         for sent in f.readlines():
@@ -110,7 +114,7 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
                 print('WARNING: source and target do not have the same number of sentences')
             break
 
-        if len(srcWords) <= opt.seq_length and len(tgtWords) <= opt.seq_length:
+        if len(srcWords) <= opt.src_seq_length and len(tgtWords) <= opt.tgt_seq_length:
 
             src += [srcDicts.convertToIdx(srcWords,
                                           onmt.Constants.UNK_WORD)]
@@ -143,8 +147,8 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
     src = [src[idx] for idx in perm]
     tgt = [tgt[idx] for idx in perm]
 
-    print('Prepared %d sentences (%d ignored due to length == 0 or > %d)' %
-          (len(src), ignored, opt.seq_length))
+    print('Prepared %d sentences (%d ignored due to length == 0 or source length > %d or target length > %d)' %
+          (len(src), ignored, opt.src_seq_length, opt.tgt_seq_length))
 
     return src, tgt
 
@@ -152,8 +156,10 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
 def main():
 
     dicts = {}
+    # type(dicts['src']) = <class 'onmt.Dict.Dict'>
     dicts['src'] = initVocabulary('source', opt.train_src, opt.src_vocab,
                                   opt.src_vocab_size)
+    # type(dicts['tgt']) = <class 'onmt.Dict.Dict'>
     dicts['tgt'] = initVocabulary('target', opt.train_tgt, opt.tgt_vocab,
                                   opt.tgt_vocab_size)
 
@@ -167,18 +173,32 @@ def main():
     valid['src'], valid['tgt'] = makeData(opt.valid_src, opt.valid_tgt,
                                     dicts['src'], dicts['tgt'])
 
+    
     if opt.src_vocab is None:
         saveVocabulary('source', dicts['src'], opt.save_data + '.src.dict')
     if opt.tgt_vocab is None:
         saveVocabulary('target', dicts['tgt'], opt.save_data + '.tgt.dict')
 
 
-    print('Saving data to \'' + opt.save_data + '.train.pt\'...')
+    print('Saving data to \'' + opt.save_data + '-train.pt\'...')
     save_data = {'dicts': dicts,
                  'train': train,
                  'valid': valid}
-    torch.save(save_data, opt.save_data + '.train.pt')
 
+    # domain adaptation source data
+    domain_train = {}
+    domain_valid = {}
+    if opt.domain_train_src is not None:
+        domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
+                                       dicts['src'], dicts['tgt'])
+        save_data['domain_train'] = domain_train
+        # Validation data
+        domain_valid['src'], _ = makeData(opt.domain_valid_src, opt.domain_valid_src, 
+                                       dicts['src'], dicts['tgt'])
+        save_data['domain_valid'] = domain_valid
+
+
+    torch.save(save_data, opt.save_data + '-train.pt')
 
 if __name__ == "__main__":
     main()

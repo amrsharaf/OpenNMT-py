@@ -6,3 +6,8 @@ data
 OpenNMT/data
 .project
 .pydevproject
+pred.txt
+multi-bleu.perl
+*.pt
+*.pyc
+.ipynb_checkpoints/
