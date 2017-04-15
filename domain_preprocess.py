@@ -19,11 +19,17 @@ parser.add_argument('-valid_src', required=True,
                     help="Path to the validation source data")
 parser.add_argument('-valid_tgt', required=True,
                      help="Path to the validation target data")
+parser.add_argument('-test_src', required=True,
+                    help="Path to the test source data")
+parser.add_argument('-test_tgt', required=True,
+                     help="Path to the test target data")
 # For domain adaptation
 parser.add_argument('-domain_train_src', required=False,
                      help="Path to in-domain source data")
 parser.add_argument('-domain_valid_src', required=False,
                      help="Path to in-domain source data")
+parser.add_argument('-domain_test_src', required=False,
+                     help="Path to in-domain test source data")
 
 parser.add_argument('-save_data', required=True,
                     help="Output file for the prepared data")
@@ -173,6 +179,11 @@ def main():
     valid['src'], valid['tgt'] = makeData(opt.valid_src, opt.valid_tgt,
                                     dicts['src'], dicts['tgt'])
 
+    print('Preparing testing ...')
+    test = {}
+    test['src'], test['tgt'] = makeData(opt.test_src, opt.test_tgt,
+                                    dicts['src'], dicts['tgt'])
+
     
     if opt.src_vocab is None:
         saveVocabulary('source', dicts['src'], opt.save_data + '.src.dict')
@@ -183,19 +194,27 @@ def main():
     print('Saving data to \'' + opt.save_data + '-train.pt\'...')
     save_data = {'dicts': dicts,
                  'train': train,
-                 'valid': valid}
+                 'valid': valid,
+                 'test': test}
 
     # domain adaptation source data
     domain_train = {}
     domain_valid = {}
+    domain_test  = {}
     if opt.domain_train_src is not None:
+        # Train
         domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
                                        dicts['src'], dicts['tgt'])
-        save_data['domain_train'] = domain_train
         # Validation data
         domain_valid['src'], _ = makeData(opt.domain_valid_src, opt.domain_valid_src, 
                                        dicts['src'], dicts['tgt'])
+        # Test data
+        domain_test['src'], _ = makeData(opt.domain_test_src, opt.domain_test_src, 
+                                       dicts['src'], dicts['tgt'])
+        # saving!
+        save_data['domain_train'] = domain_train
         save_data['domain_valid'] = domain_valid
+        save_data['domain_test'] = domain_test
 
 
     torch.save(save_data, opt.save_data + '-train.pt')
