@@ -1,3 +1,4 @@
+from functools import partial
 from onmt.modules.discriminator import Discriminator
 import onmt
 import torch.nn as nn
@@ -6,7 +7,6 @@ import torch
 from preprocess_vw import text_to_vw
 from preprocess_vw import process_sentences
 import random
-import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.optim as optim
@@ -56,7 +56,6 @@ def load_text_data(data, source, opt):
         text_data = map(lambda x:' '.join([str(i) for i in x]) , encoded_data)
     return text_data, encoded_data
 
-from functools import partial
 
 def get_valid_accuracy(valid_old, valid_new, model, opt):
     shuffle(valid_old)
@@ -99,6 +98,13 @@ class RecurrentModel(nn.Module):
         output = self.lin(h_n.view(1,-1))
         return F.sigmoid(output)
     
+def get_accuracy(prediction, truth):
+    assert(prediction.nelement() == truth.nelement())
+    prediction[prediction < 0.5]  = 0.0
+    prediction[prediction >= 0.5] = 1.0
+    accuracy = (100.0 * prediction.eq(truth).sum()) / float(prediction.nelement())
+    return accuracy
+    
 def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, valid_new):
     encoder = onmt.Models.Encoder(opt, dicts['src'])
     discriminator = Discriminator(opt.word_vec_size * opt.layers)
@@ -115,7 +121,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         print 'Epoch: ', epoch
         loss = 0.0
         correct = 0.0
-        i = 0.0
+        iter = 0.0
         total = 0.0
         # Create datasets!
         is_cuda = len(opt.gpus) >= 1
@@ -137,6 +143,8 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         
         # Now zip and loop
         for old_id, new_id in zip(old_indicies, new_indicies):
+            # Increment iteration count
+            iter += 1
             old_batch = old_domain_dataset[old_id][0]
             new_batch = new_domain_dataset[new_id][0]
             # batch first!
@@ -145,22 +153,21 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
             # TODO Check the right alignment thing!
             # Forward prop!
             # Maybe we'll need a batch to variable thing
-            old_output, new_output = model(old_batch, new_batch)
-            print 'type of old output: ', old_output
-            print 'type of new output: ', new_output
+            old_domain, new_domain = model(old_batch, new_batch)
+            discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
 
+            if is_cuda:
+                discriminator_targets = discriminator_targets.cuda()
+                
+            discriminator_targets[:] = 0.0
+            discriminator_targets[:len(old_domain)] = 1.0
+            accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
+                
+            print 'accuracy: ', accuracy
             exit(0)
-            
-        
-        
-           
-        for pos_example, neg_example in zip(old_domain_encoded, new_domain_encoded):
             
             # Positive example
             #print total
-            total+=1.0
-            i += 1.0
-            old_output, new_output = model(sentence_to_variable(pos_example, opt), sentence_to_variable(neg_example, opt))
 
             
             if old_output.data[0][0] >= 0.5:
@@ -180,7 +187,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                print 'iter:', i, ' | accuracy: ', correct / total
+                print 'iter:', iter, ' | accuracy: ', correct / total
                 loss = 0.0
                 
             if is_cuda:
@@ -220,7 +227,6 @@ def list_to_dataset(lst, batch_size, is_cuda):
     print 'then number of batches: ', math.ceil(len(lst)/float(batch_size))
     return onmt.Dataset(lst, None, batch_size, is_cuda)
     
-import numpy as np
 
 
 def count_unique(lst):
