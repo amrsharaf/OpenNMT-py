@@ -121,7 +121,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         print 'Epoch: ', epoch
         loss = 0.0
         correct = 0.0
-        iter = 0.0
+        itr = 0.0
         total = 0.0
         # Create datasets!
         is_cuda = len(opt.gpus) >= 1
@@ -144,7 +144,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         # Now zip and loop
         for old_id, new_id in zip(old_indicies, new_indicies):
             # Increment iteration count
-            iter += 1
+            itr += 1
             old_batch = old_domain_dataset[old_id][0]
             new_batch = new_domain_dataset[new_id][0]
             # batch first!
@@ -162,8 +162,11 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
             discriminator_targets[:] = 0.0
             discriminator_targets[:len(old_domain)] = 1.0
             accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
-                
+            # Compute loss
+            loss = criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
+ 
             print 'accuracy: ', accuracy
+            print 'loss: ', loss
             exit(0)
             
             # Positive example
