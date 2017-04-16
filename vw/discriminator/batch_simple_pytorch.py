@@ -175,7 +175,6 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
         print '\n\nValidation Accuracy: ', valid_accuracy
         print 'total: ', total, ' correct: ', correct
-        print 'accuracy: ', correct / total, '\n\n'
         
 def lookup_src(x, dicts=None):
     return dicts['src'].idxToLabel[x]
