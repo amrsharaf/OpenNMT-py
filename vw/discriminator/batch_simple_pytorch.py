@@ -165,40 +165,13 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
             # Compute loss
             loss = criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
  
-            print 'accuracy: ', accuracy
-            print 'loss: ', loss
-            exit(0)
-            
-            # Positive example
-            #print total
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-            
-            if old_output.data[0][0] >= 0.5:
-                correct += 1
-                
-            if is_cuda:
-                tgts_old =  Variable(torch.Tensor([1.0])).cuda()    
-            else:
-                tgts_old =  Variable(torch.Tensor([1.0]))
-                
-            loss += criterion(old_output,tgts_old)
-            # Negative example
-            total += 1.0
-            if new_output.data[0][0] < 0.5:
-                correct += 1.0
-            if total % 100 == 0:
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                print 'iter:', iter, ' | accuracy: ', correct / total
-                loss = 0.0
-                
-            if is_cuda:
-                tgts_new =  Variable(torch.Tensor([0.0])).cuda()    
-            else:
-                tgts_new =  Variable(torch.Tensor([0.0]))
-            
-            loss += criterion(new_output, tgts_new)
+            print 'Iteration: ', itr, ' accuracy: ', accuracy
+            print 'loss: ', loss
+
         # Done with this epoch, do evaluation
         valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
         print '\n\nValidation Accuracy: ', valid_accuracy
@@ -230,8 +203,6 @@ def list_to_dataset(lst, batch_size, is_cuda):
     print 'then number of batches: ', math.ceil(len(lst)/float(batch_size))
     return onmt.Dataset(lst, None, batch_size, is_cuda)
     
-
-
 def count_unique(lst):
     hash_set = set(lst)
     return len(hash_set)
