@@ -28,13 +28,13 @@ class Encoder(nn.Module):
             pretrained = torch.load(opt.pre_word_vecs_enc)
             self.word_lut.weight.data.copy_(pretrained)
 
-    def forward(self, input, hidden=None):
-        if isinstance(input, tuple):
-            emb = pack(self.word_lut(input[0]), input[1])
+    def forward(self, inpt, hidden=None):
+        if isinstance(inpt, tuple):
+            emb = pack(self.word_lut(inpt[0]), inpt[1])
         else:
-            emb = self.word_lut(input)
+            emb = self.word_lut(inpt)
         outputs, hidden_t = self.rnn(emb, hidden)
-        if isinstance(input, tuple):
+        if isinstance(inpt, tuple):
             outputs = unpack(outputs)[0]
         return hidden_t, outputs
 
@@ -50,21 +50,21 @@ class StackedLSTM(nn.Module):
             self.layers.append(nn.LSTMCell(input_size, rnn_size))
             input_size = rnn_size
 
-    def forward(self, input, hidden):
+    def forward(self, inpt, hidden):
         h_0, c_0 = hidden
         h_1, c_1 = [], []
         for i, layer in enumerate(self.layers):
-            h_1_i, c_1_i = layer(input, (h_0[i], c_0[i]))
-            input = h_1_i
+            h_1_i, c_1_i = layer(inpt, (h_0[i], c_0[i]))
+            inpt = h_1_i
             if i + 1 != self.num_layers:
-                input = self.dropout(input)
+                inpt = self.dropout(inpt)
             h_1 += [h_1_i]
             c_1 += [c_1_i]
 
         h_1 = torch.stack(h_1)
         c_1 = torch.stack(c_1)
 
-        return input, (h_1, c_1)
+        return inpt, (h_1, c_1)
 
 
 class Decoder(nn.Module):
@@ -91,8 +91,8 @@ class Decoder(nn.Module):
             pretrained = torch.load(opt.pre_word_vecs_dec)
             self.word_lut.weight.data.copy_(pretrained)
 
-    def forward(self, input, hidden, context, init_output):
-        emb = self.word_lut(input)
+    def forward(self, inpt, hidden, context, init_output):
+        emb = self.word_lut(inpt)
 
         # n.b. you can increase performance if you compute W_ih * x for all
         # iterations in parallel, but that's only possible if
@@ -150,9 +150,9 @@ class NMTModel(nn.Module):
     # enc_hidden[0].size() = enc_hidden[1].size() = (layers, batch_size, dim)
     # type(context) = Variable
     # context.size() = (words, batch_size, dim)
-    def forward(self, input, domain_batch=None):
-        src = input[0]
-        tgt = input[1][:-1]  # exclude last target from inputs
+    def forward(self, inpt, domain_batch=None):
+        src = inpt[0]
+        tgt = inpt[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         init_output = self.make_init_decoder_output(context)
         

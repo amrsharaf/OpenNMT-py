@@ -135,15 +135,12 @@ class NMTModel(nn.Module):
         else:
             return h
 
-    def forward(self, input):
-        src = input[0]
-        tgt = input[1][:-1]  # exclude last target from inputs
+    def forward(self, inpt):
+        src = inpt[0]
+        tgt = inpt[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         init_output = self.make_init_decoder_output(context)
-
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
-
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
-
         return out

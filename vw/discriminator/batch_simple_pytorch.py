@@ -144,9 +144,10 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
             new_batch = new_batch.transpose(0, 1)
             # TODO Check the right alignment thing!
             # Forward prop!
-            
-                        old_output, new_output = model(sentence_to_variable(pos_example, opt), sentence_to_variable(neg_example, opt))
-
+            # Maybe we'll need a batch to variable thing
+            old_output, new_output = model(old_batch, new_batch)
+            print 'type of old output: ', old_output
+            print 'type of new output: ', new_output
 
             exit(0)
             
