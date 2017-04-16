@@ -1,3 +1,4 @@
+import math
 from functools import partial
 from onmt.modules.discriminator import Discriminator
 import onmt
@@ -5,7 +6,6 @@ import torch.nn as nn
 from argparse import ArgumentParser
 import torch
 from preprocess_vw import text_to_vw
-from preprocess_vw import process_sentences
 import random
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -195,18 +195,12 @@ def tensor_to_vw_text(source_key, data, dicts, args):
     return domain_txt, domain_encoded
 
 
-import math
 def list_to_dataset(lst, batch_size, is_cuda):
     print 'list length: ', len(lst)
     print 'batch size: ', batch_size
     print 'then number of batches: ', math.ceil(len(lst)/float(batch_size))
     return onmt.Dataset(lst, None, batch_size, is_cuda)
     
-def count_unique(lst):
-    hash_set = set(lst)
-    return len(hash_set)
-
-
 def main():
     random.seed(1234)
     args = parse_arguments()
@@ -221,35 +215,13 @@ def main():
     data = torch.load(args.data)
     dicts = data['dicts']
     
-    train_old_domain_txt, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args) 
-    train_new_domain_txt, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args) 
+    _, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args) 
+    _, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args) 
 
-    valid_old_domain_txt, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args) 
-    valid_new_domain_txt, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args) 
+    _, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args) 
+    _, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args) 
 
-    test_old_domain_txt, _ = tensor_to_vw_text('test', data, dicts, args) 
-    test_new_domain_txt, _ = tensor_to_vw_text('domain_test', data, dicts, args)
-    
-#    train_new_domain_encoded_len = map(count_unique, train_new_domain_encoded)
-#    train_new_domain_encoded_hist = np.histogram(train_new_domain_encoded_len, bins=50)
-#    print train_new_domain_encoded_hist
-#    exit(0)
-    
-    
-    # Removing vw special characters!
-    # TODO create functions for these stuff
-    
-    #print 'Generating vw files...'
-    #process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/train.vw')
-    #process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/valid.vw')
-    #process_sentences(test_old_domain_txt, test_new_domain_txt, 'data/test.vw')
-    #print 'done!'
-    #print 'Generating vw files...'
-    #process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
-    #process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
-    
     learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
-#    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
     
 if __name__ == '__main__':
     main()
