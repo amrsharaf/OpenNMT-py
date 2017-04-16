@@ -170,7 +170,6 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
             optimizer.step()
 
             print 'Iteration: ', itr, ' accuracy: ', accuracy
-            print 'loss: ', loss
 
         # Done with this epoch, do evaluation
         valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
