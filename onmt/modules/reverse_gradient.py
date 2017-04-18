@@ -6,5 +6,5 @@ class ReverseGradient(torch.autograd.Function):
     def forward(self, x):
         return x
     def backward(self, x):
-#        return -x
-        return x
+        return -x
+#        return x

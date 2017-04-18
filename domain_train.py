@@ -265,9 +265,9 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
             # We do the domain adaptation backward call here
             if opt.adapt:
-                outputs.backward(gradOutput, retain_variables=True)
+                discriminator_loss.backward(retain_variables=True)
                 model.zero_grad()
-                discriminator_loss.backward()
+                outputs.backward(gradOutput)
             else:
                 outputs.backward(gradOutput)
 
