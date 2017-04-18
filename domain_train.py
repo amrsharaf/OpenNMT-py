@@ -440,7 +440,7 @@ def main():
     optim.set_parameters(model.parameters())
 
     if opt.train_from or opt.train_from_state_dict:
-        optim.optimizer.load_state_dict(checkpoint['optim'].optimizer.state_dict()
+        optim.optimizer.load_state_dict(checkpoint['optim'].optimizer.state_dict())
 
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)
