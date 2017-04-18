@@ -123,40 +123,46 @@ def NMTCriterion(vocabSize):
 
 def memoryEfficientLoss(outputs, targets, generator, crit, eval=False):
     # compute generations one piece at a time
-    loss = 0
-    outputs = Variable(outputs.data, requires_grad=(not eval), volatile=eval).contiguous()
+    num_correct, loss = 0, 0
+    outputs = Variable(outputs.data, requires_grad=(not eval), volatile=eval)
 
     batch_size = outputs.size(1)
     outputs_split = torch.split(outputs, opt.max_generator_batches)
-    targets_split = torch.split(targets.contiguous(), opt.max_generator_batches)
-    for out_t, targ_t in zip(outputs_split, targets_split):
+    targets_split = torch.split(targets, opt.max_generator_batches)
+    for i, (out_t, targ_t) in enumerate(zip(outputs_split, targets_split)):
         out_t = out_t.view(-1, out_t.size(2))
-        pred_t = generator(out_t)
-        loss_t = crit(pred_t, targ_t.view(-1))
+        scores_t = generator(out_t)
+        loss_t = crit(scores_t, targ_t.view(-1))
+        pred_t = scores_t.max(1)[1]
+        num_correct_t = pred_t.data.eq(targ_t.data).masked_select(targ_t.ne(onmt.Constants.PAD).data).sum()
+        num_correct += num_correct_t
         loss += loss_t.data[0]
         if not eval:
             loss_t.div(batch_size).backward()
 
     grad_output = None if outputs.grad is None else outputs.grad.data
-    return loss, grad_output
+    return loss, grad_output, num_correct
 
 
 def eval(model, criterion, data):
     total_loss = 0
     total_words = 0
+    total_num_correct = 0
 
     model.eval()
     for i in range(len(data)):
-        batch = [x.transpose(0, 1) for x in data[i]] # must be batch first for gather/scatter in DataParallel
-        outputs = model(batch)  # FIXME volatile
-        targets = batch[1][:, 1:]  # exclude <s> from targets
-        loss, _ = memoryEfficientLoss(
+        batch = data[i][:-1] # exclude original indices
+        outputs = model(batch)
+        targets = batch[1][1:]  # exclude <s> from targets
+        loss, _, num_correct = memoryEfficientLoss(
                 outputs, targets, model.generator, criterion, eval=True)
         total_loss += loss
+        total_num_correct += num_correct
         total_words += targets.data.ne(onmt.Constants.PAD).sum()
 
     model.train()
-    return total_loss / total_words
+    return float(total_loss) / float(total_words),\
+           float(total_num_correct) / float(total_words)
 
 def accuracy_eval(model, data_old, data_new):
     model.eval()
@@ -177,6 +183,30 @@ def accuracy_eval(model, data_old, data_new):
         print 'valid accuracy: ', accuracy, '\n'
     return accuracy
 
+def domain_eval(model, data_old, data_new):
+    model.eval()
+    accuracy = 0
+    total_num_discrim_correct, total_num_discrim_elements = 0, 0
+    for i in range(min(len(data_new),len(data_old))):
+        batch_old = data_old[i][:-1] # exclude original indices
+        batch_new = data_new[i][:-1]
+        
+        _, old_domain, new_domain = model(batch_old, domain_batch=batch_new)  
+        
+        tgts = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False) 
+            
+        if opt.cuda:
+            tgts = tgts.cuda()
+
+        tgts[:] = 0.0
+        tgts[:len(old_domain)] = 1.0
+        discrim_correct, num_discrim_elements = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), tgts.data)
+        
+        # Discriminator counts
+        total_num_discrim_correct += discrim_correct
+        total_num_discrim_elements += num_discrim_elements
+        
+    return float(total_num_discrim_correct) / float(total_num_discrim_elements)
 
 
 def get_accuracy(prediction, truth):
@@ -189,78 +219,68 @@ def get_accuracy(prediction, truth):
 def trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim):
     print(model)
     model.train()
-    #if optim.last_ppl is None:
-    #    for p in model.parameters():
-    #        p.data.uniform_(-opt.param_init, opt.param_init)
 
     # define criterion of each GPU
     criterion = NMTCriterion(dataset['dicts']['tgt'].size())
 
     start_time = time.time()
     def trainEpoch(epoch):
+        
+        if opt.extra_shuffle and epoch > opt.curriculum:
+            trainData.shuffle()
 
         # shuffle mini batch order
         batchOrder = torch.randperm(len(trainData))
-
-        total_loss, report_loss = 0, 0
-        total_words, report_words = 0, 0
-        report_src_words = 0
-        start = time.time()
         
         discriminator_criterion = None
         if opt.adapt:
             batchOrderAdapt = torch.randperm(len(domain_train))
             discriminator_criterion = nn.BCELoss()
 
-                
+        total_num_discrim_correct, total_num_discrim_elements = 0, 0
+        total_loss, total_words, total_num_correct = 0, 0, 0
+        report_loss, report_tgt_words, report_src_words, report_num_correct = 0, 0, 0, 0
+        start = time.time()
         for i in range(len(trainData)):
 
-            batchIdx = batchOrder[i] if epoch >= opt.curriculum else i
-            batch = trainData[batchIdx]
-            batch = [x.transpose(0, 1) for x in batch] # must be batch first for gather/scatter in DataParallel
+            batchIdx = batchOrder[i] if epoch > opt.curriculum else i   
+            batch = trainData[batchIdx][:-1] # exclude original indices
+            
+            if debug:
+                print "trainData batch size: ", trainData.batchSize
+                print "batch len : ", len(batch)
+                
+                print "\n\nbacth size: ", (len(batch[0][1]))
+                print "other ---->: ", batch[0][1]
+                print "batchIdx: ",batchIdx
 
             model.zero_grad()
             if opt.adapt:
                 batchIdxAdapt = batchOrderAdapt[i] if epoch >= opt.curriculum else i
-                domain_batch = domain_train[batchIdxAdapt]
-                domain_batch = domain_batch[0].transpose(0, 1) # must be batch first for gather/scatter in DataParallel
-                outputs, old_domain, new_domain = model(batch, domain_batch)
+                batch_len = len(batch[0][1])
+                domain_batch = domain_train[batchIdxAdapt][:-1]
+                
+                if debug:
+                    print "domain_train batch size: ", domain_train.batchSize
+                    print "domain_batch[0] type: ", type(domain_batch[0])
+                    print "domain_batch[0][0] type: ", type(domain_batch[0][0]), '\n'
+
+                outputs, old_domain, new_domain = model(batch, domain_batch=domain_batch)       
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
-                 
-                for old_sentence_src, old_sentence_tgt, new_sentence in zip(batch[0],batch[1],domain_batch) :
-                    old_sentence_src = [dataset['dicts']['src'].idxToLabel[x] for x in old_sentence_src.data]
-                    old_sentence_src = " ".join(old_sentence_src)
-                    print "old sentence src: ", old_sentence_src 
-                    
-                    old_sentence_tgt = [dataset['dicts']['tgt'].idxToLabel[x] for x in old_sentence_tgt.data]
-                    old_sentence_tgt = " ".join(old_sentence_tgt)
-                    print "old sentence tgt: ", old_sentence_tgt 
-
-                    new_sentence = [dataset['dicts']['src'].idxToLabel[x] for x in new_sentence.data]
-                    new_sentence = " ".join(new_sentence)
-                    print "\nnew sentence: ", new_sentence
-                    
-                    print "-------------------"
-
 
                 if opt.cuda:
                     discriminator_targets = discriminator_targets.cuda()
                 
                 discriminator_targets[:] = 0.0
                 discriminator_targets[:len(old_domain)] = 1.0
-                accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
+                discrim_correct, num_discrim_elements = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
                 
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
-                #print 'accuracy: ', accuracy
-                #print 'loss: ', discriminator_loss.data
-#                 discriminator_loss.backward()                
-                
-                
             else:
                 outputs = model(batch)
-            
-            targets = batch[1][:, 1:]  # exclude <s> from targets
-            loss, gradOutput = memoryEfficientLoss(
+
+            targets = batch[1][1:]  # exclude <s> from targets
+            loss, gradOutput, num_correct = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
 
             # We do the domain adaptation backward call here
@@ -273,55 +293,75 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
     
 
             # update the parameters
-            grad_norm = optim.step()
+            optim.step()
 
-            report_loss += loss
-            total_loss += loss
-            report_src_words += batch[0].data.ne(onmt.Constants.PAD).sum()
             num_words = targets.data.ne(onmt.Constants.PAD).sum()
+            report_loss += loss
+            report_num_correct += num_correct
+            report_tgt_words += num_words
+            report_src_words += sum(batch[0][1])
+            total_loss += loss
+            total_num_correct += num_correct
             total_words += num_words
-            report_words += num_words
-            if i % opt.log_interval == 0 and i > 0:
-                print("Epoch %2d, %5d/%5d batches; perplexity: %6.2f; %3.0f Source tokens/s; %6.0f s elapsed" %
-                      (epoch, i, len(trainData),
-                      math.exp(report_loss / report_words),
+            
+            # Discriminator counts
+            total_num_discrim_correct += discrim_correct
+            total_num_discrim_elements += num_discrim_elements
+            
+            if i % opt.log_interval == -1 % opt.log_interval:
+                print("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; %3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed" %
+                      (epoch, i+1, len(trainData),
+                      report_num_correct / report_tgt_words * 100,
+                      math.exp(report_loss / report_tgt_words),
                       report_src_words/(time.time()-start),
+                      report_tgt_words/(time.time()-start),
                       time.time()-start_time))
+                
+                print "discrim_correct: ", discrim_correct
+                print "num_discrim_elements: ", num_discrim_elements, '\n'
 
-                report_loss = report_words = report_src_words = 0
+                report_loss = report_tgt_words = report_src_words = report_num_correct = 0
                 start = time.time()
 
-        return total_loss / total_words
+        return float(total_loss) / float(total_words),\
+               float(total_num_correct) / float(total_words),\
+               float(total_num_discrim_correct) / float(total_num_discrim_elements)
 
     for epoch in range(opt.start_epoch, opt.epochs + 1):
         print('')
 
         #  (1) train for one epoch on the training set
-        train_loss = trainEpoch(epoch)
+        train_loss, train_acc, train_discrim_acc = trainEpoch(epoch)
         print('Train perplexity: %g' % math.exp(min(train_loss, 100)))
+        print('Train accuracy: %g' % (train_acc*100))
+        print('Train discriminator accuracy: %g' % (train_discrim_acc * 100))
 
         #  (2) evaluate on the validation set
-        valid_loss = eval(model, criterion, validData)
-        #model, data_old, data_new
-        valid_accuracy = accuracy_eval(model, validData, domain_valid)
+        valid_loss, valid_acc = eval(model, criterion, validData)
+        valid_discrim_acc = domain_eval(model, validData, domain_valid)
         valid_ppl = math.exp(min(valid_loss, 100))
         print('Validation perplexity: %g' % valid_ppl)
+        print('Validation accuracy: %g' % (valid_acc*100))
+        print('Validation discriminator accuracy: %g' % (valid_discrim_acc * 100))
 
-        #  (3) maybe update the learning rate
-        if opt.optim == 'sgd':
-            optim.updateLearningRate(valid_loss, epoch)
+        
+        #  (3) update the learning rate
+        # optim.updateLearningRate(valid_loss, epoch)
 
+        model_state_dict = model.module.state_dict() if len(opt.gpus) > 1 else model.state_dict()
+        model_state_dict = {k: v for k, v in model_state_dict.items() if 'generator' not in k}
+        generator_state_dict = model.generator.module.state_dict() if len(opt.gpus) > 1 else model.generator.state_dict()
         #  (4) drop a checkpoint
         checkpoint = {
-            'model': model,
+            'model': model_state_dict,
+            'generator': generator_state_dict,
             'dicts': dataset['dicts'],
             'opt': opt,
             'epoch': epoch,
-            'optim': optim,
+            'optim': optim
         }
         torch.save(checkpoint,
-                   '%s_e%d_%.2f.pt' % (opt.save_model, epoch, valid_ppl))
-
+                   '%s_acc_%.2f_ppl_%.2f_e%d.pt' % (opt.save_model, 100*valid_acc, valid_ppl, epoch))
 
 def main():
 
@@ -380,12 +420,12 @@ def main():
         for p in model.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
 
-        #optim = onmt.Optim(
-        #    model.parameters(), opt.optim, opt.learning_rate, opt.max_grad_norm,
-        #    lr_decay=opt.learning_rate_decay,
-        #    start_decay_at=opt.start_decay_at
-        #)
-        optim = optimizer.SGD(model.parameters(), lr=0.01)
+        optim = onmt.Optim(
+            model.parameters(), opt.optim, opt.learning_rate, opt.max_grad_norm,
+            lr_decay=opt.learning_rate_decay,
+            start_decay_at=opt.start_decay_at
+        )
+        #optim = optimizer.SGD(model.parameters(), lr=0.01)
     else:
         print('Loading from checkpoint at %s' % opt.train_from)
         checkpoint = torch.load(opt.train_from)
@@ -396,6 +436,11 @@ def main():
             model.cpu()
         optim = checkpoint['optim']
         opt.start_epoch = checkpoint['epoch'] + 1
+        
+    optim.set_parameters(model.parameters())
+
+    if opt.train_from or opt.train_from_state_dict:
+        optim.optimizer.load_state_dict(checkpoint['optim'].optimizer.state_dict()
 
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)

@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser(description='preprocess.lua')
 ##
 
 parser.add_argument('-config',    help="Read options from this file")
+parser.add_argument('-sort_new_domain', help="Sort new domain", default=True)
 
 parser.add_argument('-train_src', required=True,
                     help="Path to the training source data")
@@ -102,7 +103,7 @@ def saveVocabulary(name, vocab, file):
     vocab.writeFile(file)
 
 
-def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
+def makeData(srcFile, tgtFile, srcDicts, tgtDicts, sort_by_len=True):
     src, tgt = [], []
     sizes = []
     count, ignored = 0, 0
@@ -148,11 +149,12 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
         tgt = [tgt[idx] for idx in perm]
         sizes = [sizes[idx] for idx in perm]
 
-    print('... sorting sentences by size')
-    _, perm = torch.sort(torch.Tensor(sizes))
-    src = [src[idx] for idx in perm]
-    tgt = [tgt[idx] for idx in perm]
-
+    if sort_by_len:
+        print('... sorting sentences by size')
+        _, perm = torch.sort(torch.Tensor(sizes))
+        src = [src[idx] for idx in perm]
+        tgt = [tgt[idx] for idx in perm]
+        
     print('Prepared %d sentences (%d ignored due to length == 0 or source length > %d or target length > %d)' %
           (len(src), ignored, opt.src_seq_length, opt.tgt_seq_length))
 
@@ -213,8 +215,11 @@ def main():
     domain_test  = {}
     if opt.domain_train_src is not None:
         # Tra vbin
+        
         domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
-                                       dicts['src'], dicts['tgt'])
+                                       dicts['src'], dicts['tgt'], opt.sort_new_domain)
+
+        
         domain_train['src'] = filter_unk(domain_train['src'])
         
         # Validation data
