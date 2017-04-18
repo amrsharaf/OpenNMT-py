@@ -236,8 +236,6 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         for i in range(len(trainData)):
 
             batchIdx = batchOrder[i] if epoch > opt.curriculum else i
-            # TODO Remove this
-            batchIdx = 312
             batch = trainData[batchIdx][:-1] # exclude original indices
 
             model.zero_grad()
@@ -257,14 +255,10 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 discrim_correct, num_discrim_elements = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
 
 
-                print "old_domain: ", old_domain.size()
-                print "new_domain: ", new_domain.size()
-                print "discriminator_targets: ", discriminator_targets.size()
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
             else:
                 outputs = model(batch)
 
-            print batchIdx, batchIdxAdapt
             targets = batch[1][1:]  # exclude <s> from targets
             loss, gradOutput, num_correct = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
@@ -395,10 +389,9 @@ def main():
         nn.LogSoftmax())
 
     if opt.adapt:
-        discriminator    = Discriminator(opt.word_vec_size  * opt.layers)
-        reverse_gradient = ReverseGradient()
+        discriminator = Discriminator(opt.word_vec_size  * opt.layers)
 
-    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator, reverse_gradient)
+    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator)
 
     if opt.train_from:
         print('Loading model from checkpoint at %s' % opt.train_from)

@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import onmt.modules
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
+from onmt.modules.reverse_gradient import ReverseGradient
 
 class Encoder(nn.Module):
 
@@ -116,12 +117,11 @@ class Decoder(nn.Module):
 
 class NMTModel(nn.Module):
 
-    def __init__(self, encoder, decoder, discriminator=None, reverse_gradient=None):
+    def __init__(self, encoder, decoder, discriminator=None, reverse_gradient=None, reverse_gradient_2=None):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.discriminator = discriminator
-        self.reverse_gradient = reverse_gradient
 
     def make_init_decoder_output(self, context):
         batch_size = context.size(1)
@@ -184,24 +184,12 @@ class NMTModel(nn.Module):
 
 
             # TODO: training flag, and maybe concatenate the two batches!?
-            before = ((enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
-            print 'before: ', before.size()
-            after  = (self.reverse_gradient(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
-            relu_after  = (F.relu(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
-            print 'after: ', after.size()
-            print 'relu after: ', relu_after.size()
 #            old_domain = self.discriminator(F.relu(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
-            old_domain = self.discriminator(self.reverse_gradient(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            old_domain = self.discriminator(ReverseGradient()(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
 
             # This should give a label of 0
-            before = ((enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
-            after = (self.reverse_gradient(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
-            relu_after = (F.relu(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
-            print 'before: ', before.size()
-            print 'after: ', after.size()
-            print 'relu after: ', relu_after.size()
 #            new_domain = self.discriminator(F.relu(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
-            new_domain = self.discriminator(self.reverse_gradient(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            new_domain = self.discriminator(ReverseGradient()(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
 
             return out, old_domain, new_domain
 
