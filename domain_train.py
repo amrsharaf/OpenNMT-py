@@ -346,6 +346,12 @@ def main():
     print("Loading data from '%s'" % opt.data)
 
     dataset = torch.load(opt.data)
+    
+    dict_checkpoint = opt.train_from if opt.train_from else opt.train_from_state_dict
+    if dict_checkpoint:
+        print('Loading dicts from checkpoint at %s' % dict_checkpoint)
+        checkpoint = torch.load(dict_checkpoint)
+        dataset['dicts'] = checkpoint['dicts']
 
     # type(dataset) = <type 'dict'>
     trainData = onmt.Dataset(dataset['train']['src'],
