@@ -246,25 +246,11 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
             batchIdx = batchOrder[i] if epoch > opt.curriculum else i   
             batch = trainData[batchIdx][:-1] # exclude original indices
             
-            if debug:
-                print "trainData batch size: ", trainData.batchSize
-                print "batch len : ", len(batch)
-                
-                print "\n\nbacth size: ", (len(batch[0][1]))
-                print "other ---->: ", batch[0][1]
-                print "batchIdx: ",batchIdx
-
             model.zero_grad()
             if opt.adapt:
                 batchIdxAdapt = batchOrderAdapt[i] if epoch >= opt.curriculum else i
                 batch_len = len(batch[0][1])
                 domain_batch = domain_train[batchIdxAdapt][:-1]
-                
-                if debug:
-                    print "domain_train batch size: ", domain_train.batchSize
-                    print "domain_batch[0] type: ", type(domain_batch[0])
-                    print "domain_batch[0][0] type: ", type(domain_batch[0][0]), '\n'
-
                 outputs, old_domain, new_domain = model(batch, domain_batch=domain_batch)       
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
 
