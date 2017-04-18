@@ -9,7 +9,7 @@ class Discriminator(nn.Module):
         self.lin2 = nn.Linear(input_size * 4, input_size * 4)
         self.lin3 = nn.Linear(input_size * 4, 1)
 
-    def forward(self, x, training):
+    def forward(self, x):
         output = self.lin1(x)
  #       output = F.relu(output)
         # TODO: Dropout test / train?

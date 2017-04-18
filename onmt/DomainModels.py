@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 import onmt.modules
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
@@ -146,7 +147,7 @@ class NMTModel(nn.Module):
     # type(enc_hidden) = tuple
     # len(enc_hidden)  = 2
     # enc_hidden[0]: hidden unit states for every word
-    # enc_hidden[1]: output of the encoder 
+    # enc_hidden[1]: output of the encoder
     # type(enc_hidden[0]) = type(enc_hidden[1]) = Variable
     # enc_hidden[0].size() = enc_hidden[1].size() = (layers, batch_size, dim)
     # type(context) = Variable
@@ -156,38 +157,52 @@ class NMTModel(nn.Module):
         tgt = inpt[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         init_output = self.make_init_decoder_output(context)
-        
+
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
-        
+
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
-        
+
         debug = False
-        
+
         if domain_batch is not None:
             # TODO: make sure this is the correct batch_size
-            old_batch_size = context.size(1) 
+            old_batch_size = context.size(1)
             src_domain_batch = domain_batch[0]
-            
+
             enc_hidden_adapt,context = self.encoder(src_domain_batch)
             new_batch_size = context.size(1)
             enc_hidden_adapt  = (self._fix_enc_hidden(enc_hidden_adapt[0]),
                                  self._fix_enc_hidden(enc_hidden_adapt[1]))
-            
+
             if debug:
                 print "enc_hidden_adapt.size(): ", enc_hidden_adapt[1].size()
                 print "enc_hidden_adapt: ", enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1).size()
-                
+
                 print "enc_hidden.size(): ", enc_hidden[1].size(), '\n'
                 print "enc_hidden: ", enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1).size(), '\n'
 
-            
+
             # TODO: training flag, and maybe concatenate the two batches!?
-            old_domain = self.reverse_gradient(self.discriminator(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1), True))
-            
+            before = ((enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            print 'before: ', before.size()
+            after  = (self.reverse_gradient(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            relu_after  = (F.relu(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            print 'after: ', after.size()
+            print 'relu after: ', relu_after.size()
+#            old_domain = self.discriminator(F.relu(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            old_domain = self.discriminator(self.reverse_gradient(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+
             # This should give a label of 0
-            new_domain = self.reverse_gradient(self.discriminator(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1), True))
-    
+            before = ((enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            after = (self.reverse_gradient(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            relu_after = (F.relu(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            print 'before: ', before.size()
+            print 'after: ', after.size()
+            print 'relu after: ', relu_after.size()
+#            new_domain = self.discriminator(F.relu(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            new_domain = self.discriminator(self.reverse_gradient(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+
             return out, old_domain, new_domain
 
         # if not domain_batch

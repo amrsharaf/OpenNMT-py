@@ -184,22 +184,22 @@ def domain_eval(model, data_old, data_new):
     for i in range(min(len(data_new),len(data_old))):
         batch_old = data_old[i][:-1] # exclude original indices
         batch_new = data_new[i][:-1]
-        
-        _, old_domain, new_domain = model(batch_old, domain_batch=batch_new)  
-        
-        tgts = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False) 
-            
+
+        _, old_domain, new_domain = model(batch_old, domain_batch=batch_new)
+
+        tgts = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
+
         if opt.cuda:
             tgts = tgts.cuda()
 
         tgts[:] = 0.0
         tgts[:len(old_domain)] = 1.0
         discrim_correct, num_discrim_elements = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), tgts.data)
-        
+
         # Discriminator counts
         total_num_discrim_correct += discrim_correct
         total_num_discrim_elements += num_discrim_elements
-        
+
     return float(total_num_discrim_correct) / float(total_num_discrim_elements)
 
 def get_accuracy(prediction, truth):
@@ -207,7 +207,7 @@ def get_accuracy(prediction, truth):
     prediction[prediction < 0.5]  = 0.0
     prediction[prediction >= 0.5] = 1.0
     return prediction.eq(truth).sum(), float(prediction.nelement())
-    
+
 def trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim):
     print(model)
     model.train()
@@ -217,13 +217,13 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
     start_time = time.time()
     def trainEpoch(epoch):
-        
+
         if opt.extra_shuffle and epoch > opt.curriculum:
             trainData.shuffle()
 
         # shuffle mini batch order
         batchOrder = torch.randperm(len(trainData))
-        
+
         discriminator_criterion = None
         if opt.adapt:
             batchOrderAdapt = torch.randperm(len(domain_train))
@@ -235,29 +235,36 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         start = time.time()
         for i in range(len(trainData)):
 
-            batchIdx = batchOrder[i] if epoch > opt.curriculum else i   
+            batchIdx = batchOrder[i] if epoch > opt.curriculum else i
+            # TODO Remove this
+            batchIdx = 312
             batch = trainData[batchIdx][:-1] # exclude original indices
-            
+
             model.zero_grad()
             if opt.adapt:
                 batchIdxAdapt = batchOrderAdapt[i] if epoch >= opt.curriculum else i
                 batch_len = len(batch[0][1])
                 domain_batch = domain_train[batchIdxAdapt][:-1]
 
-                outputs, old_domain, new_domain = model(batch, domain_batch=domain_batch)       
+                outputs, old_domain, new_domain = model(batch, domain_batch=domain_batch)
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
 
                 if opt.cuda:
                     discriminator_targets = discriminator_targets.cuda()
-                
+
                 discriminator_targets[:] = 0.0
                 discriminator_targets[:len(old_domain)] = 1.0
                 discrim_correct, num_discrim_elements = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
-                
+
+
+                print "old_domain: ", old_domain.size()
+                print "new_domain: ", new_domain.size()
+                print "discriminator_targets: ", discriminator_targets.size()
                 discriminator_loss = discriminator_criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
             else:
                 outputs = model(batch)
 
+            print batchIdx, batchIdxAdapt
             targets = batch[1][1:]  # exclude <s> from targets
             loss, gradOutput, num_correct = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
@@ -269,7 +276,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 discriminator_loss.backward()
             else:
                 outputs.backward(gradOutput)
-    
+
 
             # update the parameters
             optim.step()
@@ -282,11 +289,11 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
             total_loss += loss
             total_num_correct += num_correct
             total_words += num_words
-            
+
             # Discriminator counts
             total_num_discrim_correct += discrim_correct
             total_num_discrim_elements += num_discrim_elements
-            
+
             if i % opt.log_interval == -1 % opt.log_interval:
                 print("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; %3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed" %
                       (epoch, i+1, len(trainData),
@@ -295,7 +302,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                       report_src_words/(time.time()-start),
                       report_tgt_words/(time.time()-start),
                       time.time()-start_time))
-                
+
                 print "discrim_correct: ", discrim_correct
                 print "num_discrim_elements: ", num_discrim_elements, '\n'
 
@@ -323,7 +330,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         print('Validation accuracy: %g' % (valid_acc*100))
         print('Validation discriminator accuracy: %g' % (valid_discrim_acc * 100))
 
-        
+
         #  (3) update the learning rate
         # optim.updateLearningRate(valid_loss, epoch)
 
@@ -347,7 +354,7 @@ def main():
     print("Loading data from '%s'" % opt.data)
 
     dataset = torch.load(opt.data)
-    
+
     dict_checkpoint = opt.train_from if opt.train_from else opt.train_from_state_dict
     if dict_checkpoint:
         print('Loading dicts from checkpoint at %s' % dict_checkpoint)
@@ -365,12 +372,12 @@ def main():
     if opt.adapt:
         assert('domain_train' in dataset)
         assert('domain_valid' in dataset)
-        domain_train = onmt.Dataset(dataset['domain_train']['src'], None, 
+        domain_train = onmt.Dataset(dataset['domain_train']['src'], None,
                                   opt.batch_size, opt.cuda)
-        domain_valid = onmt.Dataset(dataset['domain_valid']['src'], None, 
+        domain_valid = onmt.Dataset(dataset['domain_valid']['src'], None,
                                   opt.batch_size, opt.cuda)
-        
-        
+
+
     dicts = dataset['dicts']
     print(' * vocabulary size. source = %d; target = %d' %
           (dicts['src'].size(), dicts['tgt'].size()))
@@ -390,7 +397,7 @@ def main():
     if opt.adapt:
         discriminator    = Discriminator(opt.word_vec_size  * opt.layers)
         reverse_gradient = ReverseGradient()
-    
+
     model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator, reverse_gradient)
 
     if opt.train_from:

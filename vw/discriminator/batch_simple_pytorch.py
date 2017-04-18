@@ -36,7 +36,7 @@ def parse_arguments():
                     See README for specific formatting instructions.""")
     ap.add_argument('-adapt', action='store_true',
                     help='Domain Adaptation')
-    
+
     # GPU
     ap.add_argument('-gpus', default=[], nargs='+', type=int,
                         help="Use CUDA on the listed devices.")
@@ -83,28 +83,28 @@ def sentence_to_variable(sentence, opt=None):
         return Variable(sentence.view(1, -1)).cuda()
     else:
         return Variable(sentence.view(1, -1))
-        
+
 class RecurrentModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
         super(RecurrentModel, self).__init__()
         self.embedding = nn.Embedding(50000, input_size)
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bidirectional=True)
         self.lin = nn.Linear(input_size * num_layers * 2,1)
-         
+
     def forward(self, inpt):
         output = self.embedding(inpt)
         output = output.transpose(0,1)
         _, (h_n, _) = self.lstm(output)
         output = self.lin(h_n.view(1,-1))
         return F.sigmoid(output)
-    
+
 def get_accuracy(prediction, truth):
     assert(prediction.nelement() == truth.nelement())
     prediction[prediction < 0.5]  = 0.0
     prediction[prediction >= 0.5] = 1.0
     accuracy = (100.0 * prediction.eq(truth).sum()) / float(prediction.nelement())
     return accuracy
-    
+
 def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, valid_new):
     encoder = onmt.Models.Encoder(opt, dicts['src'])
     discriminator = Discriminator(opt.word_vec_size * opt.layers)
@@ -114,7 +114,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         model.cuda()
     else:
         model.cpu()
-    
+
     criterion = nn.BCELoss()
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     for epoch in range(100):
@@ -125,7 +125,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         total = 0.0
         # Create datasets!
         is_cuda = len(opt.gpus) >= 1
-        batch_size = 64
+        batch_size = 2
         old_domain_dataset = list_to_dataset(old_domain_encoded, batch_size, is_cuda)
         new_domain_dataset = list_to_dataset(new_domain_encoded, batch_size, is_cuda)
         # Length and stuff!
@@ -140,7 +140,7 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         # Truncate
         old_indicies = old_indicies[:min_num_batches]
         new_indicies = new_indicies[:min_num_batches]
-        
+
         # Now zip and loop
         for old_id, new_id in zip(old_indicies, new_indicies):
             # Increment iteration count
@@ -158,13 +158,13 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
 
             if is_cuda:
                 discriminator_targets = discriminator_targets.cuda()
-                
+
             discriminator_targets[:] = 0.0
             discriminator_targets[:len(old_domain)] = 1.0
             accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), discriminator_targets.data)
             # Compute loss
             loss = criterion(torch.cat([old_domain, new_domain]), discriminator_targets)
- 
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -172,10 +172,10 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
             print 'Iteration: ', itr, ' accuracy: ', accuracy
 
         # Done with this epoch, do evaluation
-        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
+        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)
         print '\n\nValidation Accuracy: ', valid_accuracy
         print 'total: ', total, ' correct: ', correct
-        
+
 def lookup_src(x, dicts=None):
     return dicts['src'].idxToLabel[x]
 
@@ -184,7 +184,7 @@ def convert_single_sentence(single_sentence, dicts=None):
     return str(" ".join(map(lookup_partial, single_sentence)))
 
 def convert_to_sentence(list_of_sentences,dicts):
-    convert_partial = partial(convert_single_sentence, dicts=dicts) 
+    convert_partial = partial(convert_single_sentence, dicts=dicts)
     return map(convert_partial, list_of_sentences)
 
 def tensor_to_vw_text(source_key, data, dicts, args):
@@ -199,30 +199,30 @@ def list_to_dataset(lst, batch_size, is_cuda):
     print 'batch size: ', batch_size
     print 'then number of batches: ', math.ceil(len(lst)/float(batch_size))
     return onmt.Dataset(lst, None, batch_size, is_cuda)
-    
+
 def main():
     random.seed(1234)
     args = parse_arguments()
-    
+
     if torch.cuda.is_available() and not args.gpus:
         print("WARNING: You have a CUDA device, so you should probably run with -gpus 0")
 
     if args.gpus:
         cuda.set_device(args.gpus[0])
-    
+
     print 'Reading data from: ', args.data
     data = torch.load(args.data)
     dicts = data['dicts']
-    
-    _, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args) 
-    _, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args) 
 
-    _, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args) 
-    _, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args) 
+    _, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args)
+    _, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args)
+
+    _, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args)
+    _, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args)
 
     learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
-    
+
 if __name__ == '__main__':
     main()
-    
-    
+
+
