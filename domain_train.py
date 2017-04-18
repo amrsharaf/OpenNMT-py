@@ -382,8 +382,8 @@ def main():
     print('Building model...')
 
     if opt.train_from is None:
-        encoder = onmt.Models.Encoder(opt, dicts['src'])
-        decoder = onmt.Models.Decoder(opt, dicts['tgt'])
+        encoder = onmt.DomainModels.Encoder(opt, dicts['src'])
+        decoder = onmt.DomainModels.Decoder(opt, dicts['tgt'])
         generator = nn.Sequential(
             nn.Linear(opt.rnn_size, dicts['tgt'].size()),
             nn.LogSoftmax())
@@ -393,7 +393,7 @@ def main():
         discriminator = None
         if opt.adapt:
             discriminator = Discriminator(opt.word_vec_size  * opt.layers)
-        model = onmt.Models.NMTModel(encoder, decoder, generator, discriminator)
+        model = onmt.DomainModels.NMTModel(encoder, decoder, generator, discriminator)
         if opt.cuda > 1:
             model = nn.DataParallel(model, device_ids=opt.gpus)
         if opt.cuda:
