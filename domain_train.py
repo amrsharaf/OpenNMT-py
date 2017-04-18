@@ -19,7 +19,10 @@ parser.add_argument('-save_model', default='model',
                     help="""Model filename (the model will be saved as
                     <save_model>_epochN_PPL.pt where PPL is the
                     validation perplexity""")
-parser.add_argument('-train_from',
+parser.add_argument('-train_from_state_dict', default='', type=str,
+                    help="""If training from a checkpoint then this is the
+                    path to the pretrained model's state_dict.""")
+parser.add_argument('-train_from', default='', type=str,
                     help="""If training from a checkpoint then this is the
                     path to the pretrained model.""")
 
@@ -60,25 +63,35 @@ parser.add_argument('-param_init', type=float, default=0.1,
                     with support (-param_init, param_init)""")
 parser.add_argument('-optim', default='sgd',
                     help="Optimization method. [sgd|adagrad|adadelta|adam]")
-parser.add_argument('-learning_rate', type=float, default=1.0,
-                    help="""Starting learning rate. If adagrad/adadelta/adam is
-                    used, then this is the global learning rate. Recommended
-                    settings: sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.1""")
 parser.add_argument('-max_grad_norm', type=float, default=5,
                     help="""If the norm of the gradient vector exceeds this,
                     renormalize it to have the norm equal to max_grad_norm""")
 parser.add_argument('-dropout', type=float, default=0.3,
                     help='Dropout probability; applied between LSTM stacks.')
-parser.add_argument('-learning_rate_decay', type=float, default=0.5,
-                    help="""Decay learning rate by this much if (i) perplexity
-                    does not decrease on the validation set or (ii) epoch has
-                    gone past the start_decay_at_limit""")
-parser.add_argument('-start_decay_at', default=8,
-                    help="Start decay after this epoch")
 parser.add_argument('-curriculum', action="store_true",
                     help="""For this many epochs, order the minibatches based
                     on source sequence length. Sometimes setting this to 1 will
                     increase convergence speed.""")
+parser.add_argument('-extra_shuffle', action="store_true",
+                    help="""By default only shuffle mini-batch order; when true,
+                    shuffle and re-assign mini-batches""")
+
+#learning rate
+parser.add_argument('-learning_rate', type=float, default=1.0,
+                    help="""Starting learning rate. If adagrad/adadelta/adam is
+                    used, then this is the global learning rate. Recommended
+                    settings: sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
+parser.add_argument('-learning_rate_decay', type=float, default=0.5,
+                    help="""If update_learning_rate, decay learning rate by
+                    this much if (i) perplexity does not decrease on the
+                    validation set or (ii) epoch has gone past
+                    start_decay_at""")
+parser.add_argument('-start_decay_at', type=int, default=8,
+                    help="""Start decaying every epoch after and including this
+                    epoch""")
+
+#pretrained word vectors
+
 parser.add_argument('-pre_word_vecs_enc',
                     help="""If a valid path is specified, then this will load
                     pretrained word embeddings on the encoder side.
@@ -88,14 +101,13 @@ parser.add_argument('-pre_word_vecs_dec',
                     pretrained word embeddings on the decoder side.
                     See README for specific formatting instructions.""")
 
+
 # GPU
 parser.add_argument('-gpus', default=[], nargs='+', type=int,
-                    help="Use CUDA")
+                    help="Use CUDA on the listed devices.")
 
 parser.add_argument('-log_interval', type=int, default=50,
                     help="Print stats at this interval.")
-# parser.add_argument('-seed', type=int, default=3435,
-#                     help="Seed for random initialization")
 
 # domain adaptation
 parser.add_argument('-adapt', action='store_true',
@@ -164,25 +176,6 @@ def eval(model, criterion, data):
     return float(total_loss) / float(total_words),\
            float(total_num_correct) / float(total_words)
 
-def accuracy_eval(model, data_old, data_new):
-    model.eval()
-    for i in range(min(len(data_old),len(data_new))):
-        batch_old = [x.transpose(0, 1) for x in data_old[i]]
-        batch_new = data_new[i][0].transpose(0, 1)
-        
-        _,old_domain, new_domain = model(batch_old,batch_new)   
-        tgts = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)   
-        if opt.cuda:
-            tgts = tgts.cuda()
-        
-        tgts[:] = 0.0
-        tgts[:len(old_domain)] = 1.0
-        accuracy = get_accuracy(torch.cat([old_domain, new_domain]).data.squeeze(), tgts.data)  
-        print "batch_old: ", batch_old[0].size()
-        print "batch_new: ", batch_new.size()
-        print 'valid accuracy: ', accuracy, '\n'
-    return accuracy
-
 def domain_eval(model, data_old, data_new):
     model.eval()
     accuracy = 0
@@ -208,13 +201,11 @@ def domain_eval(model, data_old, data_new):
         
     return float(total_num_discrim_correct) / float(total_num_discrim_elements)
 
-
 def get_accuracy(prediction, truth):
     assert(prediction.nelement() == truth.nelement())
     prediction[prediction < 0.5]  = 0.0
     prediction[prediction >= 0.5] = 1.0
-    accuracy = (100.0 * prediction.eq(truth).sum()) / float(prediction.nelement())
-    return accuracy
+    return prediction.eq(truth).sum(), float(prediction.nelement())
     
 def trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim):
     print(model)
@@ -251,6 +242,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                 batchIdxAdapt = batchOrderAdapt[i] if epoch >= opt.curriculum else i
                 batch_len = len(batch[0][1])
                 domain_batch = domain_train[batchIdxAdapt][:-1]
+
                 outputs, old_domain, new_domain = model(batch, domain_batch=domain_batch)       
                 discriminator_targets = Variable(torch.FloatTensor(len(old_domain) + len(new_domain),), requires_grad=False)
 
@@ -381,48 +373,63 @@ def main():
 
     print('Building model...')
 
-    if opt.train_from is None:
-        encoder = onmt.DomainModels.Encoder(opt, dicts['src'])
-        decoder = onmt.DomainModels.Decoder(opt, dicts['tgt'])
-        generator = nn.Sequential(
-            nn.Linear(opt.rnn_size, dicts['tgt'].size()),
-            nn.LogSoftmax())
-        if opt.cuda > 1:
-            generator = nn.DataParallel(generator, device_ids=opt.gpus)
-        # Domain Adaptation
-        discriminator = None
-        if opt.adapt:
-            discriminator = Discriminator(opt.word_vec_size  * opt.layers)
-        model = onmt.DomainModels.NMTModel(encoder, decoder, generator, discriminator)
-        if opt.cuda > 1:
-            model = nn.DataParallel(model, device_ids=opt.gpus)
-        if opt.cuda:
-            model.cuda()
-        else:
-            model.cpu()
+    encoder = onmt.DomainModels.Encoder(opt, dicts['src'])
+    decoder = onmt.DomainModels.Decoder(opt, dicts['tgt'])
 
-        model.generator = generator
+    generator = nn.Sequential(
+        nn.Linear(opt.rnn_size, dicts['tgt'].size()),
+        nn.LogSoftmax())
 
+    if opt.adapt:
+        discriminator = Discriminator(opt.word_vec_size  * opt.layers)
+    
+    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator)
+
+    if opt.train_from:
+        print('Loading model from checkpoint at %s' % opt.train_from)
+        chk_model = checkpoint['model']
+        generator_state_dict = chk_model.generator.state_dict()
+        model_state_dict = {k: v for k, v in chk_model.state_dict().items() if 'generator' not in k}
+        model.load_state_dict(model_state_dict)
+        generator.load_state_dict(generator_state_dict)
+        opt.start_epoch = checkpoint['epoch'] + 1
+
+    if opt.train_from_state_dict:
+        print('Loading model from checkpoint at %s' % opt.train_from_state_dict)
+        model.load_state_dict(checkpoint['model'])
+        generator.load_state_dict(checkpoint['generator'])
+        opt.start_epoch = checkpoint['epoch'] + 1
+
+    if len(opt.gpus) >= 1:
+        model.cuda()
+        generator.cuda()
+    else:
+        model.cpu()
+        generator.cpu()
+
+    if len(opt.gpus) > 1:
+        model = nn.DataParallel(model, device_ids=opt.gpus, dim=1)
+        generator = nn.DataParallel(generator, device_ids=opt.gpus, dim=0)
+
+    model.generator = generator
+
+    if not opt.train_from_state_dict and not opt.train_from:
         for p in model.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
 
+        encoder.load_pretrained_vectors(opt)
+        decoder.load_pretrained_vectors(opt)
+
         optim = onmt.Optim(
-            model.parameters(), opt.optim, opt.learning_rate, opt.max_grad_norm,
+            opt.optim, opt.learning_rate, opt.max_grad_norm,
             lr_decay=opt.learning_rate_decay,
             start_decay_at=opt.start_decay_at
         )
-        #optim = optimizer.SGD(model.parameters(), lr=0.01)
     else:
-        print('Loading from checkpoint at %s' % opt.train_from)
-        checkpoint = torch.load(opt.train_from)
-        model = checkpoint['model']
-        if opt.cuda:
-            model.cuda()
-        else:
-            model.cpu()
+        print('Loading optimizer from checkpoint:')
         optim = checkpoint['optim']
-        opt.start_epoch = checkpoint['epoch'] + 1
-        
+        print(optim)
+
     optim.set_parameters(model.parameters())
 
     if opt.train_from or opt.train_from_state_dict:
@@ -432,7 +439,6 @@ def main():
     print('* number of parameters: %d' % nParams)
 
     trainModel(model, trainData, validData, domain_train, domain_valid, dataset, optim)
-
 
 if __name__ == "__main__":
     main()
