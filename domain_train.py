@@ -8,6 +8,7 @@ import math
 import time
 import torch.optim as optimizer
 from onmt.modules.discriminator import Discriminator
+from onmt.modules.reverse_gradient import ReverseGradient
 
 parser = argparse.ArgumentParser(description='train.py')
 
@@ -387,9 +388,10 @@ def main():
         nn.LogSoftmax())
 
     if opt.adapt:
-        discriminator = Discriminator(opt.word_vec_size  * opt.layers)
+        discriminator    = Discriminator(opt.word_vec_size  * opt.layers)
+        reverse_gradient = ReverseGradient()
     
-    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator)
+    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator, reverse_gradient)
 
     if opt.train_from:
         print('Loading model from checkpoint at %s' % opt.train_from)

@@ -115,11 +115,12 @@ class Decoder(nn.Module):
 
 class NMTModel(nn.Module):
 
-    def __init__(self, encoder, decoder, discriminator=None):
+    def __init__(self, encoder, decoder, discriminator=None, reverse_gradient=None):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.discriminator = discriminator
+        self.reverse_gradient = reverse_gradient
 
     def make_init_decoder_output(self, context):
         batch_size = context.size(1)
@@ -182,10 +183,10 @@ class NMTModel(nn.Module):
 
             
             # TODO: training flag, and maybe concatenate the two batches!?
-            old_domain = self.discriminator(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1), True)
+            old_domain = self.reverse_gradient(self.discriminator(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1), True))
             
             # This should give a label of 0
-            new_domain = self.discriminator(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1), True)
+            new_domain = self.reverse_gradient(self.discriminator(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1), True))
     
             return out, old_domain, new_domain
 
