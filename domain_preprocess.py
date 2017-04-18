@@ -154,7 +154,7 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts, sort_by_len=True):
         _, perm = torch.sort(torch.Tensor(sizes))
         src = [src[idx] for idx in perm]
         tgt = [tgt[idx] for idx in perm]
-        
+
     print('Prepared %d sentences (%d ignored due to length == 0 or source length > %d or target length > %d)' %
           (len(src), ignored, opt.src_seq_length, opt.tgt_seq_length))
 
@@ -196,7 +196,7 @@ def main():
     test['src'], test['tgt'] = makeData(opt.test_src, opt.test_tgt,
                                     dicts['src'], dicts['tgt'])
 
-    
+
     if opt.src_vocab is None:
         saveVocabulary('source', dicts['src'], opt.save_data + '.src.dict')
     if opt.tgt_vocab is None:
@@ -215,21 +215,21 @@ def main():
     domain_test  = {}
     if opt.domain_train_src is not None:
         # Tra vbin
-        
-        domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src, 
+
+        domain_train['src'], _ = makeData(opt.domain_train_src, opt.domain_train_src,
                                        dicts['src'], dicts['tgt'], opt.sort_new_domain)
 
-        
+
         domain_train['src'] = filter_unk(domain_train['src'])
-        
+
         # Validation data
-        domain_valid['src'], _ = makeData(opt.domain_valid_src, opt.domain_valid_src, 
+        domain_valid['src'], _ = makeData(opt.domain_valid_src, opt.domain_valid_src,
                                        dicts['src'], dicts['tgt'])
-        
+
         # Test data
-        domain_test['src'], _ = makeData(opt.domain_test_src, opt.domain_test_src, 
+        domain_test['src'], _ = makeData(opt.domain_test_src, opt.domain_test_src,
                                        dicts['src'], dicts['tgt'])
-        
+
         # saving!
         save_data['domain_train'] = domain_train
         save_data['domain_valid'] = domain_valid
