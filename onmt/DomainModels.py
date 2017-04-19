@@ -116,11 +116,12 @@ class Decoder(nn.Module):
 
 class NMTModel(nn.Module):
 
-    def __init__(self, encoder, decoder, discriminator=None):
+    def __init__(self, encoder, decoder, discriminator=None, reverse_gradient=None):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.discriminator = discriminator
+        self.reverse_gradient = reverse_gradient
 
     def make_init_decoder_output(self, context):
         batch_size = context.size(1)
@@ -168,9 +169,15 @@ class NMTModel(nn.Module):
             new_batch_size = context.size(1)
             enc_hidden_adapt  = (self._fix_enc_hidden(enc_hidden_adapt[0]),
                                  self._fix_enc_hidden(enc_hidden_adapt[1]))
-            old_domain = self.discriminator(ReverseGradient()(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            
+            old_reverse_outpout = self.reverse_gradient((enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+            h_old = old_reverse_outpout.register_hook(lambda grad: grad * -1)
+            old_domain = self.discriminator(old_reverse_outpout)
+            
             # This should give a label of 0
-            new_domain = self.discriminator(ReverseGradient()(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            new_reverse_output = self.reverse_gradient((enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
+            h_new = new_reverse_output.register_hook(lambda grad: grad * -1)
+            new_domain = self.discriminator(new_reverse_output)
             return out, old_domain, new_domain
         # if not domain_batch
         return out

@@ -265,9 +265,9 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
             # We do the domain adaptation backward call here
             if opt.adapt:
-#                discriminator_loss.backward(retain_variables=True)
-#                model.zero_grad()
-                outputs.backward(gradOutput)
+                outputs.backward(gradOutput, retain_variables=True)
+                model.zero_grad()
+                discriminator_loss.backward()
             else:
                 outputs.backward(gradOutput)
 
@@ -361,7 +361,7 @@ def main():
     trainData = onmt.Dataset(dataset['train']['src'],
                              dataset['train']['tgt'], opt.batch_size, opt.cuda)
     validData = onmt.Dataset(dataset['valid']['src'],
-                             dataset['valid']['tgt'], opt.batch_size, opt.cuda, volatile=True)
+                             dataset['valid']['tgt'], opt.batch_size, opt.cuda)
 
     domain_train = None
     domain_valid = None
@@ -391,10 +391,12 @@ def main():
         nn.LogSoftmax())
 
     discriminator = None
+    gradient_reversal = None
     if opt.adapt:
         discriminator = Discriminator(opt.word_vec_size  * opt.layers)
+        gradient_reversal = ReverseGradient()
 
-    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator)
+    model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator, gradient_reversal)
 
     if opt.train_from:
         print('Loading model from checkpoint at %s' % opt.train_from)

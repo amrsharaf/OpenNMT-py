@@ -18,7 +18,8 @@ class DomainTranslator(object):
         encoder = onmt.DomainModels.Encoder(model_opt, self.src_dict)
         decoder = onmt.DomainModels.Decoder(model_opt, self.tgt_dict)
         discriminator = onmt.modules.Discriminator(model_opt.word_vec_size * model_opt.layers)
-        model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator)
+        gradient_reversal = onmt.modules.ReverseGradient()
+        model = onmt.DomainModels.NMTModel(encoder, decoder, discriminator, gradient_reversal)
 
         generator = nn.Sequential(
             nn.Linear(model_opt.rnn_size, self.tgt_dict.size()),
