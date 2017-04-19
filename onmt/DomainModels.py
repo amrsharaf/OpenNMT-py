@@ -117,7 +117,7 @@ class Decoder(nn.Module):
 
 class NMTModel(nn.Module):
 
-    def __init__(self, encoder, decoder, discriminator=None, reverse_gradient=None, reverse_gradient_2=None):
+    def __init__(self, encoder, decoder, discriminator=None):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
@@ -157,14 +157,9 @@ class NMTModel(nn.Module):
         tgt = inpt[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         init_output = self.make_init_decoder_output(context)
-
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
-
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
-
-        debug = False
-
         if domain_batch is not None:
             # TODO: make sure this is the correct batch_size
             old_batch_size = context.size(1)
@@ -174,17 +169,9 @@ class NMTModel(nn.Module):
             new_batch_size = context.size(1)
             enc_hidden_adapt  = (self._fix_enc_hidden(enc_hidden_adapt[0]),
                                  self._fix_enc_hidden(enc_hidden_adapt[1]))
-
-
-            # TODO: training flag, and maybe concatenate the two batches!?
-#            old_domain = self.discriminator(F.relu(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
             old_domain = self.discriminator(ReverseGradient()(enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
-
             # This should give a label of 0
-#            new_domain = self.discriminator(F.relu(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
             new_domain = self.discriminator(ReverseGradient()(enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1)))
-
             return out, old_domain, new_domain
-
         # if not domain_batch
         return out

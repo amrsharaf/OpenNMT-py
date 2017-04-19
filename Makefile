@@ -28,15 +28,8 @@ TEST_SRC=data/multi30k/test.en.atok
 TEST_TRG=data/multi30k/test.de.atok
 DATA=data/multi30k.atok
 DATA_PT=data/multi30k.atok-train.pt
-SAVE_MODEL=clean_multi30k_model
+SAVE_MODEL=wmt16_multi30k_model
 OUTPUT=pred.txt
-
-test_2:
-	echo 'hello world'
-
-test: test_2
-	$(eval MODEL = $(shell ls -Art clean_multi30k_model* | tail -n 1))
-	echo $(MODEL)
 
 iwslt:
 	python preprocess.py -train_src $(IWSLT_TRAIN_SRC)  -train_tgt $(IWSLT_TRAIN_TRG) -valid_src $(IWSLT_VALID_SRC)  -valid_tgt $(IWSLT_VALID_TRG)  -save_data $(IWSLT_DATA)
@@ -57,7 +50,7 @@ wmt16_train:
 	python train.py -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1
 
 wmt16: wmt16_train
-	$(eval MODEL = $(shell ls -Art clean* | tail -n 1))
+	$(eval MODEL = $(shell ls -Art wmt16* | tail -n 1))
 	python translate.py -gpu 0 -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 
@@ -65,8 +58,8 @@ domain_wmt16_train:
 	python domain_preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) -domain_train_src data/IWSLT/train.de-en.en -domain_valid_src data/IWSLT/valid.de-en.en -domain_test_src data/IWSLT/test.de-en.en -test_src data/src-test.txt -test_tgt data/tgt-test.txt 
 	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1
 
-domain_wmt16: wmt16_train
-	$(eval MODEL = $(shell ls -Art clean* | tail -n 1))
+domain_wmt16: domain_wmt16_train
+	$(eval MODEL = $(shell ls -Art wmt16* | tail -n 1))
 	python domain_translate.py -gpu 0 -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 
