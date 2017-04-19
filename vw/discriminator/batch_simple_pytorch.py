@@ -84,20 +84,6 @@ def sentence_to_variable(sentence, opt=None):
     else:
         return Variable(sentence.view(1, -1))
 
-class RecurrentModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers):
-        super(RecurrentModel, self).__init__()
-        self.embedding = nn.Embedding(50000, input_size)
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bidirectional=True)
-        self.lin = nn.Linear(input_size * num_layers * 2,1)
-
-    def forward(self, inpt):
-        output = self.embedding(inpt)
-        output = output.transpose(0,1)
-        _, (h_n, _) = self.lstm(output)
-        output = self.lin(h_n.view(1,-1))
-        return F.sigmoid(output)
-
 def get_accuracy(prediction, truth):
     assert(prediction.nelement() == truth.nelement())
     prediction[prediction < 0.5]  = 0.0

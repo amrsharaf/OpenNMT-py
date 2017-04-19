@@ -32,6 +32,29 @@ LEARNING_RATE=0.1
 MODEL_PREFIX=wmt16_$(LEARNING_RATE)_
 SAVE_MODEL=$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
+GPUS=-1
+GPU=-1
+
+get_scripts:
+	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
+	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
+	$(eval $(shell sed -i "s/$RealBin\/..\/share\/nonbreaking_prefixes//" tokenizer.perl))
+	wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.de
+	wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.en
+	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/generic/multi-bleu.perl
+
+get_wmt16:
+	mkdir -p data/multi30k
+	wget http://www.quest.dcs.shef.ac.uk/wmt16_files_mmt/training.tar.gz &&  tar -xf training.tar.gz -C data/multi30k && rm training.tar.gz
+	wget http://www.quest.dcs.shef.ac.uk/wmt16_files_mmt/validation.tar.gz && tar -xf validation.tar.gz -C data/multi30k && rm validation.tar.gz
+	wget https://staff.fnwi.uva.nl/d.elliott/wmt16/mmt16_task1_test.tgz && tar -xf mmt16_task1_test.tgz -C data/multi30k && rm mmt16_task1_test.tgz
+
+sed_wmt16: get_wmt16
+	$(eval $(shell for l in en de; do for f in data/multi30k/*.$l; do if [[ "$f" != *"test"* ]]; then sed -i '' "$ d" $f; fi;  done; done))
+
+tokenize_wmt16:
+	for l in en de; do for f in data/multi30k/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
+	for f in data/multi30k/*.tok; do perl lowercase.perl < $f > $f.low; done # if you ran Moses
 
 iwslt:
 	python preprocess.py -train_src $(IWSLT_TRAIN_SRC)  -train_tgt $(IWSLT_TRAIN_TRG) -valid_src $(IWSLT_VALID_SRC)  -valid_tgt $(IWSLT_VALID_TRG)  -save_data $(IWSLT_DATA)
@@ -57,12 +80,12 @@ wmt16: wmt16_train
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 
 domain_wmt16_train:
-	python domain_preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) -domain_train_src data/IWSLT/train.de-en.en -domain_valid_src data/IWSLT/valid.de-en.en -domain_test_src data/IWSLT/test.de-en.en -test_src data/src-test.txt -test_tgt data/tgt-test.txt 
-	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1 -learning_rate $(LEARNING_RATE) -batch_size 32
+	python domain_preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) -domain_train_src $(IWSLT_TRAIN_SRC) -domain_valid_src $(IWSLT_VALID_SRC) -domain_test_src $(IWSLT_TEST_SRC) -test_src $(TEST_SRC) -test_tgt $(TEST_TRG) 
+	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus $(GPUS) -learning_rate $(LEARNING_RATE) -batch_size 32
 
 domain_wmt16: domain_wmt16_train
 	$(eval MODEL = $(shell ls -Art $(MODEL_PREFIX)* | tail -n 1))
-	python domain_translate.py -gpu 0 -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 
 pre_process_augmented:

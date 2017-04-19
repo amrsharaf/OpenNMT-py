@@ -254,21 +254,24 @@ def main():
     valid_old_domain_txt, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args) 
     valid_new_domain_txt, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args) 
 
-    test_old_domain_txt = tensor_to_vw_text('test', data, dicts, args) 
-    test_new_domain_txt = tensor_to_vw_text('domain_test', data, dicts, args) 
+    test_old_domain_txt, _ = tensor_to_vw_text('test', data, dicts, args) 
+    test_new_domain_txt, _ = tensor_to_vw_text('domain_test', data, dicts, args) 
 
     # Removing vw special characters!
     # TODO create functions for these stuff
     
-    #print 'Generating vw files...'
-    #process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/train.vw')
-    #process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/valid.vw')
-    #process_sentences(test_old_domain_txt, test_new_domain_txt, 'data/test.vw')
-    #print 'done!'
+    print 'Generating vw files...'
+    process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/wmt16_train.vw')
+    process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/wmt16_valid.vw')
+    print 'type of test: ', type(test_old_domain_txt)
+    print '==================================================='
+    process_sentences(test_old_domain_txt, test_new_domain_txt, 'data/wmt16_test.vw')
+    print 'done!'
     #print 'Generating vw files...'
     #process_sentences(train_old_domain_encoded_txt, train_new_domain_encoded_txt, 'data/train_encoded.vw')
     #process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
-    
+
+    # Learning stuff
     learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
 #    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
     
