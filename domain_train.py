@@ -326,7 +326,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
 
         #  (3) update the learning rate
-        # optim.updateLearningRate(valid_loss, epoch)
+        optim.updateLearningRate(valid_loss, epoch)
 
         model_state_dict = model.module.state_dict() if len(opt.gpus) > 1 else model.state_dict()
         model_state_dict = {k: v for k, v in model_state_dict.items() if 'generator' not in k}
