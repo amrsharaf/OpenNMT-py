@@ -36,7 +36,7 @@ def parse_arguments():
                     See README for specific formatting instructions.""")
     ap.add_argument('-adapt', action='store_true',
                     help='Domain Adaptation')
-    
+
     # GPU
     ap.add_argument('-gpus', default=[], nargs='+', type=int,
                         help="Use CUDA on the listed devices.")
@@ -84,31 +84,31 @@ def sentence_to_variable(sentence, opt=None):
         return Variable(sentence.view(1, -1)).cuda()
     else:
         return Variable(sentence.view(1, -1))
-        
+
 class RecurrentModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
         super(RecurrentModel, self).__init__()
         self.embedding = nn.Embedding(50000, input_size)
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bidirectional=True)
         self.lin = nn.Linear(input_size * num_layers * 2,1)
-         
+
     def forward(self, inpt):
         output = self.embedding(inpt)
         output = output.transpose(0,1)
         _, (h_n, _) = self.lstm(output)
         output = self.lin(h_n.view(1,-1))
         return F.sigmoid(output)
-    
+
 def learn_lstm(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, valid_new):
     model = RecurrentModel(opt.word_vec_size, opt.rnn_size, opt.layers)
-    
+
     if len(opt.gpus) >= 1:
         model.cuda()
     else:
         model.cpu()
-    
+
     criterion = nn.BCELoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=1.0)
     for epoch in range(100):
         print 'Epoch: ', epoch
         loss = 0.0
@@ -117,26 +117,25 @@ def learn_lstm(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, va
         total = 0.0
         for pos_example, neg_example in zip(old_domain_encoded, new_domain_encoded):
             # Positive example
-            print total
             total += 1.0
             i += 1.0
             old_output = model(sentence_to_variable(pos_example, opt))
-            
-            
+
+
             if old_output.data[0][0] >= 0.5:
                 correct += 1
-                
+
             if len(opt.gpus) >= 1:
-                tgts_old =  Variable(torch.Tensor([1.0])).cuda()    
+                tgts_old =  Variable(torch.Tensor([1.0])).cuda()
             else:
-                tgts_old =  Variable(torch.Tensor([1.0])) 
-                
+                tgts_old =  Variable(torch.Tensor([1.0]))
+
             loss += criterion(old_output, tgts_old)
             # Negative example
             total += 1.0
-            
+
             new_output = model(sentence_to_variable(neg_example, opt))
-            
+
             if new_output.data[0][0] < 0.5:
                 correct += 1.0
             if total % 100 == 0:
@@ -145,15 +144,15 @@ def learn_lstm(old_domain_encoded, new_domain_encoded, opt, dicts, valid_old, va
                 optimizer.step()
                 print 'iter:', i, ' | accuracy: ', correct / total
                 loss = 0.0
-            
+
             if len(opt.gpus) >= 1:
-                tgts_new =  Variable(torch.Tensor([0.0])).cuda()                 
+                tgts_new =  Variable(torch.Tensor([0.0])).cuda()
             else:
                 tgts_new =  Variable(torch.Tensor([0.0]))
 
             loss += criterion(new_output, tgts_new)
         # Done with this epoch, do evaluation
-        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
+        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)
         print '\n\nValidation Accuracy: ', valid_accuracy
         print 'total: ', total, ' correct: ', correct
         print 'accuracy: ', correct / total, '\n\n'
@@ -167,9 +166,9 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         model.cuda()
     else:
         model.cpu()
-    
+
     criterion = nn.BCELoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=0.5, momentum=0.45)
     for epoch in range(100):
         print 'Epoch: ', epoch
         loss = 0.0
@@ -177,22 +176,22 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
         i = 0.0
         total = 0.0
         for pos_example, neg_example in zip(old_domain_encoded[:], new_domain_encoded[:]):
-            
+
             # Positive example
             #print total
             total+=1.0
             i += 1.0
             old_output, new_output = model(sentence_to_variable(pos_example, opt), sentence_to_variable(neg_example, opt))
 
-            
+
             if old_output.data[0][0] >= 0.5:
                 correct += 1
-                
+
             if len(opt.gpus) >= 1:
-                tgts_old =  Variable(torch.Tensor([1.0])).cuda()    
+                tgts_old =  Variable(torch.Tensor([1.0])).cuda()
             else:
                 tgts_old =  Variable(torch.Tensor([1.0]))
-                
+
             loss += criterion(old_output,tgts_old)
             # Negative example
             total += 1.0
@@ -204,19 +203,19 @@ def learn_recurrent(old_domain_encoded, new_domain_encoded, opt, dicts, valid_ol
                 optimizer.step()
                 print 'iter:', i, ' | accuracy: ', correct / total
                 loss = 0.0
-                
+
             if len(opt.gpus) >= 1:
-                tgts_new =  Variable(torch.Tensor([0.0])).cuda()    
+                tgts_new =  Variable(torch.Tensor([0.0])).cuda()
             else:
                 tgts_new =  Variable(torch.Tensor([0.0]))
-            
+
             loss += criterion(new_output, tgts_new)
         # Done with this epoch, do evaluation
-        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)  
+        valid_accuracy = get_valid_accuracy(valid_old, valid_new, model, opt)
         print '\n\nValidation Accuracy: ', valid_accuracy
         print 'total: ', total, ' correct: ', correct
         print 'accuracy: ', correct / total, '\n\n'
-        
+
 def lookup_src(x, dicts=None):
     return dicts['src'].idxToLabel[x]
 
@@ -225,7 +224,7 @@ def convert_single_sentence(single_sentence, dicts=None):
     return str(" ".join(map(lookup_partial, single_sentence)))
 
 def convert_to_sentence(list_of_sentences,dicts):
-    convert_partial = partial(convert_single_sentence, dicts=dicts) 
+    convert_partial = partial(convert_single_sentence, dicts=dicts)
     return map(convert_partial, list_of_sentences)
 
 def tensor_to_vw_text(source_key, data, dicts, args):
@@ -237,29 +236,29 @@ def tensor_to_vw_text(source_key, data, dicts, args):
 def main():
     random.seed(1234)
     args = parse_arguments()
-    
+
     if torch.cuda.is_available() and not args.gpus:
         print("WARNING: You have a CUDA device, so you should probably run with -gpus 0")
 
     if args.gpus:
         cuda.set_device(args.gpus[0])
-    
+
     print 'Reading data from: ', args.data
     data = torch.load(args.data)
     dicts = data['dicts']
-    
-    train_old_domain_txt, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args) 
-    train_new_domain_txt, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args) 
 
-    valid_old_domain_txt, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args) 
-    valid_new_domain_txt, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args) 
+    train_old_domain_txt, train_old_domain_encoded = tensor_to_vw_text('train', data, dicts, args)
+    train_new_domain_txt, train_new_domain_encoded = tensor_to_vw_text('domain_train', data, dicts, args)
 
-    test_old_domain_txt, _ = tensor_to_vw_text('test', data, dicts, args) 
-    test_new_domain_txt, _ = tensor_to_vw_text('domain_test', data, dicts, args) 
+    valid_old_domain_txt, valid_old_domain_encoded = tensor_to_vw_text('valid', data, dicts, args)
+    valid_new_domain_txt, valid_new_domain_encoded = tensor_to_vw_text('domain_valid', data, dicts, args)
+
+    test_old_domain_txt, _ = tensor_to_vw_text('test', data, dicts, args)
+    test_new_domain_txt, _ = tensor_to_vw_text('domain_test', data, dicts, args)
 
     # Removing vw special characters!
     # TODO create functions for these stuff
-    
+
     print 'Generating vw files...'
     process_sentences(train_old_domain_txt, train_new_domain_txt, 'data/wmt16_train.vw')
     process_sentences(valid_old_domain_txt, valid_new_domain_txt, 'data/wmt16_valid.vw')
@@ -272,10 +271,10 @@ def main():
     #process_sentences(valid_old_domain_encoded_txt, valid_new_domain_encoded_txt, 'data/valid_encoded.vw')
 
     # Learning stuff
-    learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
-#    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
-    
+#    learn_recurrent(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
+    learn_lstm(train_old_domain_encoded, train_new_domain_encoded, args, data['dicts'], valid_old_domain_encoded, valid_new_domain_encoded)
+
 if __name__ == '__main__':
     main()
-    
-    
+
+
