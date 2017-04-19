@@ -5,7 +5,6 @@ import onmt.modules
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from onmt.modules.reverse_gradient import ReverseGradient
-import torch.nn.functional as F
 
 class Encoder(nn.Module):
 
@@ -30,16 +29,15 @@ class Encoder(nn.Module):
             pretrained = torch.load(opt.pre_word_vecs_enc)
             self.word_lut.weight.data.copy_(pretrained)
 
-    def forward(self, inpt, hidden=None):
-        if isinstance(inpt, tuple):
-            emb = pack(self.word_lut(inpt[0]), inpt[1])
+    def forward(self, input, hidden=None):
+        if isinstance(input, tuple):
+            emb = pack(self.word_lut(input[0]), input[1])
         else:
-            emb = self.word_lut(inpt)
+            emb = self.word_lut(input)
         outputs, hidden_t = self.rnn(emb, hidden)
-        if isinstance(inpt, tuple):
+        if isinstance(input, tuple):
             outputs = unpack(outputs)[0]
         return hidden_t, outputs
-
 
 class StackedLSTM(nn.Module):
     def __init__(self, num_layers, input_size, rnn_size, dropout):
@@ -52,21 +50,21 @@ class StackedLSTM(nn.Module):
             self.layers.append(nn.LSTMCell(input_size, rnn_size))
             input_size = rnn_size
 
-    def forward(self, inpt, hidden):
+    def forward(self, input, hidden):
         h_0, c_0 = hidden
         h_1, c_1 = [], []
         for i, layer in enumerate(self.layers):
-            h_1_i, c_1_i = layer(inpt, (h_0[i], c_0[i]))
-            inpt = h_1_i
+            h_1_i, c_1_i = layer(input, (h_0[i], c_0[i]))
+            input = h_1_i
             if i + 1 != self.num_layers:
-                inpt = self.dropout(inpt)
+                input = self.dropout(input)
             h_1 += [h_1_i]
             c_1 += [c_1_i]
 
         h_1 = torch.stack(h_1)
         c_1 = torch.stack(c_1)
 
-        return inpt, (h_1, c_1)
+        return input, (h_1, c_1)
 
 
 class Decoder(nn.Module):
@@ -93,8 +91,8 @@ class Decoder(nn.Module):
             pretrained = torch.load(opt.pre_word_vecs_dec)
             self.word_lut.weight.data.copy_(pretrained)
 
-    def forward(self, inpt, hidden, context, init_output):
-        emb = self.word_lut(inpt)
+    def forward(self, input, hidden, context, init_output):
+        emb = self.word_lut(input)
 
         # n.b. you can increase performance if you compute W_ih * x for all
         # iterations in parallel, but that's only possible if
@@ -138,12 +136,12 @@ class NMTModel(nn.Module):
         else:
             return h
 
-    # type(inpt) = list
-    # len(inpt) = 2
-    # type(inpt[0]) = <class 'torch.autograd.variable.Variable'>
-    # type(inpt[1]) = <class 'torch.autograd.variable.Variable'>
-    # inpt[0].size() = (batch_size, )
-    # inpt[1].size() = (batch_size, )
+    # type(inupt) = list
+    # len(input) = 2
+    # type(input[0]) = <class 'torch.autograd.variable.Variable'>
+    # type(input[1]) = <class 'torch.autograd.variable.Variable'>
+    # input[0].size() = (batch_size, )
+    # input[1].size() = (batch_size, )
     # type(enc_hidden) = tuple
     # len(enc_hidden)  = 2
     # enc_hidden[0]: hidden unit states for every word
@@ -152,9 +150,9 @@ class NMTModel(nn.Module):
     # enc_hidden[0].size() = enc_hidden[1].size() = (layers, batch_size, dim)
     # type(context) = Variable
     # context.size() = (words, batch_size, dim)
-    def forward(self, inpt, domain_batch=None):
-        src = inpt[0]
-        tgt = inpt[1][:-1]  # exclude last target from inputs
+    def forward(self, input, domain_batch=None):
+        src = input[0]
+        tgt = input[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         init_output = self.make_init_decoder_output(context)
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
