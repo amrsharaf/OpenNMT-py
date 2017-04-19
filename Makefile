@@ -28,7 +28,9 @@ TEST_SRC=data/multi30k/test.en.atok
 TEST_TRG=data/multi30k/test.de.atok
 DATA=data/multi30k.atok
 DATA_PT=data/multi30k.atok-train.pt
-SAVE_MODEL=wmt16_multi30k_model
+LEARNING_RATE=0.1
+MODEL_PREFIX=wmt16_$(LEARNING_RATE)_
+SAVE_MODEL=$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
 
 iwslt:
@@ -47,7 +49,7 @@ wmt14:
 
 wmt16_train:
 	python preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) 
-	python train.py -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1
+	python train.py -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1 -learning_rate 0.1 -batch_size 32
 
 wmt16: wmt16_train
 	$(eval MODEL = $(shell ls -Art wmt16* | tail -n 1))
@@ -56,10 +58,10 @@ wmt16: wmt16_train
 
 domain_wmt16_train:
 	python domain_preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) -domain_train_src data/IWSLT/train.de-en.en -domain_valid_src data/IWSLT/valid.de-en.en -domain_test_src data/IWSLT/test.de-en.en -test_src data/src-test.txt -test_tgt data/tgt-test.txt 
-	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1
+	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1 -learning_rate $(LEARNING_RATE) -batch_size 32
 
 domain_wmt16: domain_wmt16_train
-	$(eval MODEL = $(shell ls -Art wmt16* | tail -n 1))
+	$(eval MODEL = $(shell ls -Art $(MODEL_PREFIX)* | tail -n 1))
 	python domain_translate.py -gpu 0 -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 
@@ -76,10 +78,10 @@ merge:
 	python domain_preprocess.py -train_src data/all_src.txt -train_tgt data/all_src.txt -valid_src data/all_src.txt -valid_tgt data/all_src.txt -test_src data/all_src.txt -test_tgt data/all_src.txt -save_data data/all -src_vocab_size 80000 -tgt_vocab_size 1 
 
 domain_train:
-	python domain_train.py -data data/demo-train.pt -save_model model -adapt -learning_rate 1.0 -gpus 0 -batch_size 32
+	python domain_train.py -data data/demo-train.pt -save_model model -adapt -learning_rate $(LEARNING_RATE) -gpus 0 -batch_size 32
 
 train:
-	python train.py -data data/demo-train.pt -save_model model -adapt -learning_rate 0.0001 
+	python train.py -data data/demo-train.pt -save_model model -adapt -learning_rate $(LEARNING_RATE)
 
 train_g:
 	python train.py -data data/demo-train.pt -save_model model -adapt -learning_rate 0.0001 -gpu 0
