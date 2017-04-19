@@ -266,7 +266,10 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
             # We do the domain adaptation backward call here
             if opt.adapt:
                 outputs.backward(gradOutput, retain_variables=True)
-                model.zero_grad()
+                #model.zero_grad()
+                model.encoder.zero_grad()
+                model.decoder.zero_grad()
+                model.discriminator.zero_grad()
                 discriminator_loss.backward()
             else:
                 outputs.backward(gradOutput)
