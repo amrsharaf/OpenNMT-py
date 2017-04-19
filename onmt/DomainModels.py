@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.autograd import Variable
 import onmt.modules
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from onmt.modules.reverse_gradient import ReverseGradient
+import torch.nn.functional as F
 
 class Encoder(nn.Module):
 
@@ -174,13 +174,6 @@ class NMTModel(nn.Module):
             new_batch_size = context.size(1)
             enc_hidden_adapt  = (self._fix_enc_hidden(enc_hidden_adapt[0]),
                                  self._fix_enc_hidden(enc_hidden_adapt[1]))
-
-            if debug:
-                print "enc_hidden_adapt.size(): ", enc_hidden_adapt[1].size()
-                print "enc_hidden_adapt: ", enc_hidden_adapt[1].transpose(0,1).contiguous().view(new_batch_size,-1).size()
-
-                print "enc_hidden.size(): ", enc_hidden[1].size(), '\n'
-                print "enc_hidden: ", enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1).size(), '\n'
 
 
             # TODO: training flag, and maybe concatenate the two batches!?

@@ -388,6 +388,7 @@ def main():
         nn.Linear(opt.rnn_size, dicts['tgt'].size()),
         nn.LogSoftmax())
 
+    discriminator = None
     if opt.adapt:
         discriminator = Discriminator(opt.word_vec_size  * opt.layers)
 
