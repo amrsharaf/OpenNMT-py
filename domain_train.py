@@ -1,3 +1,5 @@
+from __future__ import division
+
 import onmt
 import argparse
 import torch
@@ -6,7 +8,6 @@ from torch import cuda
 from torch.autograd import Variable
 import math
 import time
-import torch.optim as optimizer
 from onmt.modules.discriminator import Discriminator
 from onmt.modules.reverse_gradient import ReverseGradient
 
@@ -101,7 +102,6 @@ parser.add_argument('-pre_word_vecs_dec',
                     help="""If a valid path is specified, then this will load
                     pretrained word embeddings on the decoder side.
                     See README for specific formatting instructions.""")
-
 
 # GPU
 parser.add_argument('-gpus', default=[], nargs='+', type=int,
@@ -265,8 +265,8 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
             # We do the domain adaptation backward call here
             if opt.adapt:
-                discriminator_loss.backward(retain_variables=True)
-                model.zero_grad()
+#                discriminator_loss.backward(retain_variables=True)
+#                model.zero_grad()
                 outputs.backward(gradOutput)
             else:
                 outputs.backward(gradOutput)
@@ -285,8 +285,9 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
             total_words += num_words
 
             # Discriminator counts
-            total_num_discrim_correct += discrim_correct
-            total_num_discrim_elements += num_discrim_elements
+            if opt.adapt:
+                total_num_discrim_correct += discrim_correct
+                total_num_discrim_elements += num_discrim_elements
 
             if i % opt.log_interval == -1 % opt.log_interval:
                 print("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; %3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed" %
@@ -297,15 +298,17 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                       report_tgt_words/(time.time()-start),
                       time.time()-start_time))
 
-                print "discrim_correct: ", discrim_correct
-                print "num_discrim_elements: ", num_discrim_elements, '\n'
+                if opt.adapt:
+                    print "discrim_correct: ", discrim_correct
+                    print "num_discrim_elements: ", num_discrim_elements, '\n'
 
                 report_loss = report_tgt_words = report_src_words = report_num_correct = 0
                 start = time.time()
 
-        return float(total_loss) / float(total_words),\
-               float(total_num_correct) / float(total_words),\
-               float(total_num_discrim_correct) / float(total_num_discrim_elements)
+        if opt.adapt:
+            return total_loss / total_words, total_num_correct / total_words, total_num_discrim_correct / total_num_discrim_elements
+        else:
+            return total_loss / total_words, total_num_correct / total_words, 0
 
     for epoch in range(opt.start_epoch, opt.epochs + 1):
         print('')
@@ -318,13 +321,12 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
         #  (2) evaluate on the validation set
         valid_loss, valid_acc = eval(model, criterion, validData)
-        valid_discrim_acc = domain_eval(model, validData, domain_valid)
         valid_ppl = math.exp(min(valid_loss, 100))
         print('Validation perplexity: %g' % valid_ppl)
         print('Validation accuracy: %g' % (valid_acc*100))
-        print('Validation discriminator accuracy: %g' % (valid_discrim_acc * 100))
-
-
+        if opt.adapt:
+            valid_discrim_acc = domain_eval(model, validData, domain_valid)
+            print('Validation discriminator accuracy: %g' % (valid_discrim_acc * 100))
         #  (3) update the learning rate
         optim.updateLearningRate(valid_loss, epoch)
 
@@ -359,7 +361,7 @@ def main():
     trainData = onmt.Dataset(dataset['train']['src'],
                              dataset['train']['tgt'], opt.batch_size, opt.cuda)
     validData = onmt.Dataset(dataset['valid']['src'],
-                             dataset['valid']['tgt'], opt.batch_size, opt.cuda)
+                             dataset['valid']['tgt'], opt.batch_size, opt.cuda, volatile=True)
 
     domain_train = None
     domain_valid = None

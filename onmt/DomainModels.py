@@ -39,6 +39,7 @@ class Encoder(nn.Module):
             outputs = unpack(outputs)[0]
         return hidden_t, outputs
 
+
 class StackedLSTM(nn.Module):
     def __init__(self, num_layers, input_size, rnn_size, dropout):
         super(StackedLSTM, self).__init__()
