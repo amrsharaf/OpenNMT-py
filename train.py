@@ -109,7 +109,6 @@ parser.add_argument('-log_interval', type=int, default=50,
                     help="Print stats at this interval.")
 
 print parser.parse_args()
-exit(0)
 
 opt = parser.parse_args()
 
@@ -355,5 +354,5 @@ def main():
     trainModel(model, trainData, validData, dataset, optim)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
