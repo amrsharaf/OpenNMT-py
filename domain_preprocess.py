@@ -20,9 +20,9 @@ parser.add_argument('-valid_src', required=True,
                     help="Path to the validation source data")
 parser.add_argument('-valid_tgt', required=True,
                      help="Path to the validation target data")
-parser.add_argument('-test_src', required=True,
+parser.add_argument('-test_src', required=False,
                     help="Path to the test source data")
-parser.add_argument('-test_tgt', required=True,
+parser.add_argument('-test_tgt', required=False,
                      help="Path to the test target data")
 # For domain adaptation
 parser.add_argument('-domain_train_src', required=False,
@@ -191,12 +191,12 @@ def main():
     valid['src'], valid['tgt'] = makeData(opt.valid_src, opt.valid_tgt,
                                     dicts['src'], dicts['tgt'])
 
-    print('Preparing testing ...')
     test = {}
-    test['src'], test['tgt'] = makeData(opt.test_src, opt.test_tgt,
+    if opt.test_src:
+        assert(opt.test_tgt)
+        print('Preparing testing ...')
+        test['src'], test['tgt'] = makeData(opt.test_src, opt.test_tgt,
                                     dicts['src'], dicts['tgt'])
-
-
     if opt.src_vocab is None:
         saveVocabulary('source', dicts['src'], opt.save_data + '.src.dict')
     if opt.tgt_vocab is None:
@@ -227,7 +227,9 @@ def main():
                                        dicts['src'], dicts['tgt'])
 
         # Test data
-        domain_test['src'], _ = makeData(opt.domain_test_src, opt.domain_test_src,
+        domain_test = {}
+        if opt.domain_test_src:
+            domain_test['src'], _ = makeData(opt.domain_test_src, opt.domain_test_src,
                                        dicts['src'], dicts['tgt'])
 
         # saving!
