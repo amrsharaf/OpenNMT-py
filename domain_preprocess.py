@@ -203,7 +203,7 @@ def main():
         saveVocabulary('target', dicts['tgt'], opt.save_data + '.tgt.dict')
 
 
-    print('Saving data to \'' + opt.save_data + '-train.pt\'...')
+    print('Saving data to \'' + opt.save_data + '.train.pt\'...')
     save_data = {'dicts': dicts,
                  'train': train,
                  'valid': valid,
@@ -238,7 +238,7 @@ def main():
         save_data['domain_test'] = domain_test
 
 
-    torch.save(save_data, opt.save_data + '-train.pt')
+    torch.save(save_data, opt.save_data + '.train.pt')
 
 if __name__ == "__main__":
     main()
