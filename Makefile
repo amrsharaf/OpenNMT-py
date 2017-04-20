@@ -103,10 +103,6 @@ new_domain:
 	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(IWSLT_TEST_SRC) -tgt $(IWSLT_TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(IWSLT_TEST_TRG) < $(OUTPUT)
 
-domain_wmt16_train:
-	python domain_preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) -domain_train_src $(IWSLT_TRAIN_SRC) -domain_valid_src $(IWSLT_VALID_SRC) -domain_test_src $(IWSLT_TEST_SRC) -test_src $(TEST_SRC) -test_tgt $(TEST_TRG) 
-	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus $(GPUS) -learning_rate $(LEARNING_RATE) -batch_size 32
-
 domain_wmt16: domain_wmt16_train
 	$(eval MODEL = $(shell ls -Art $(MODEL_PREFIX)* | tail -n 1))
 	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
@@ -141,4 +137,19 @@ domain_news_com: domain_news_com_train
 	$(eval MODEL = $(shell ls -Art $(NEWS_MODEL_PREFIX)* | tail -n 1))
 	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(NEWS_TEST_SRC) -tgt $(NEWS_TEST_TRG) -replace_unk -verbose -output $(NEWS_OUTPUT)
 	perl multi-bleu.perl $(NEWS_TEST_TRG) < $(NEWS_OUTPUT)
+
+domain_pre_train:
+	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus $(GPUS) -learning_rate $(LEARNING_RATE) -batch_size 32 -train_from_state_dict europarl_cpu.pt
+
+evaluate_news:
+	python domain_translate.py -gpu $(GPU) -model new-com-gpu01_1.0_model_acc_42.53_ppl_32.53_e13.pt -src $(IWSLT_TEST_SRC) -tgt $(IWSLT_TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+	perl multi-bleu.perl $(IWSLT_TEST_TRG) < $(OUTPUT)
+
+evaluate_saved:
+	python domain_translate.py -gpu $(GPU) -model wmt16_1.0__multi30k_model_before.pt -src $(IWSLT_TEST_TRG) -tgt $(IWSLT_TEST_SRC) -replace_unk -verbose -output $(OUTPUT)
+	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
+
+evaluate_shi:
+	python translate.py -gpu $(GPU) -model europarl_cpu.pt -src $(IWSLT_TEST_TRG) -tgt $(IWSLT_TEST_SRC) -replace_unk -verbose -output $(OUTPUT)
+	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
 

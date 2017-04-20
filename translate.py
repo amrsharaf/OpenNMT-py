@@ -1,9 +1,13 @@
+# -*- coding: utf-8 -*-
 from __future__ import division
 
 import onmt
 import torch
 import argparse
 import math
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 parser = argparse.ArgumentParser(description='translate.py')
 
@@ -71,7 +75,7 @@ def main():
 
     tgtF = open(opt.tgt) if opt.tgt else None
     for line in addone(open(opt.src)):
-        
+
         if line is not None:
             srcTokens = line.split()
             srcBatch += [srcTokens]
@@ -87,7 +91,7 @@ def main():
                 break
 
         predBatch, predScore, goldScore = translator.translate(srcBatch, tgtBatch)
- 
+
         predScoreTotal += sum(score[0] for score in predScore)
         predWordsTotal += sum(len(x[0]) for x in predBatch)
         if tgtF is not None:

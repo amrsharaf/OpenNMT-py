@@ -4,6 +4,9 @@ import onmt
 import torch
 import argparse
 import math
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 parser = argparse.ArgumentParser(description='translate.py')
 
@@ -96,7 +99,9 @@ def main():
 
         for b in range(len(predBatch)):
             count += 1
-            outF.write(" ".join(predBatch[b][0]) + '\n')
+            s = " ".join([x.encode("utf-8") for x in predBatch[b][0]])
+            s = s + '\n'
+            outF.write(s)
             outF.flush()
 
             if opt.verbose:

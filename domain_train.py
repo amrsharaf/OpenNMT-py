@@ -310,6 +310,23 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         else:
             return total_loss / total_words, total_num_correct / total_words, 0
 
+    #  (4) drop a checkpoint
+    model_state_dict = model.module.state_dict() if len(opt.gpus) > 1 else model.state_dict()
+    model_state_dict = {k: v for k, v in model_state_dict.items() if 'generator' not in k}
+    generator_state_dict = model.generator.module.state_dict() if len(opt.gpus) > 1 else model.generator.state_dict()
+    checkpoint = {
+        'model': model_state_dict,
+        'generator': generator_state_dict,
+        'dicts': dataset['dicts'],
+        'opt': opt,
+        'epoch': -1,
+        'optim': optim
+    }
+    torch.save(checkpoint,
+                    '%s_before.pt' % (opt.save_model))
+    print('checkpoint saved')
+    exit(0)
+
     for epoch in range(opt.start_epoch, opt.epochs + 1):
         print('')
 
@@ -409,9 +426,13 @@ def main():
 
     if opt.train_from_state_dict:
         print('Loading model from checkpoint at %s' % opt.train_from_state_dict)
-        model.load_state_dict(checkpoint['model'])
+        encoder_state_dict = {k.split('.', 1)[1]: v for k, v in checkpoint['model'].items() if 'encoder' in k}
+        decoder_state_dict = {k.split('.', 1)[1]: v for k, v in checkpoint['model'].items() if 'decoder' in k}
+        model.encoder.load_state_dict(encoder_state_dict)
+        model.decoder.load_state_dict(decoder_state_dict)
         generator.load_state_dict(checkpoint['generator'])
-        opt.start_epoch = checkpoint['epoch'] + 1
+        # opt.start_epoch = checkpoint['epoch'] + 1
+        opt.start_epoch = 0
 
     if len(opt.gpus) >= 1:
         model.cuda()
@@ -426,27 +447,45 @@ def main():
 
     model.generator = generator
 
+    for p in model.discriminator.parameters():
+        p.data.uniform_(-opt.param_init, opt.param_init)
+
+    optim = onmt.Optim(
+        opt.optim, opt.learning_rate, opt.max_grad_norm,
+        lr_decay=opt.learning_rate_decay,
+        start_decay_at=opt.start_decay_at
+    )
+
     if not opt.train_from_state_dict and not opt.train_from:
-        for p in model.parameters():
+        for p in encoder.parameters():
+            p.data.uniform_(-opt.param_init, opt.param_init)
+        for p in decoder.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
 
         encoder.load_pretrained_vectors(opt)
         decoder.load_pretrained_vectors(opt)
 
-        optim = onmt.Optim(
-            opt.optim, opt.learning_rate, opt.max_grad_norm,
-            lr_decay=opt.learning_rate_decay,
-            start_decay_at=opt.start_decay_at
-        )
-    else:
-        print('Loading optimizer from checkpoint:')
-        optim = checkpoint['optim']
-        print(optim)
+#     if not opt.train_from_state_dict and not opt.train_from:
+#         for p in model.parameters():
+#             p.data.uniform_(-opt.param_init, opt.param_init)
+#
+#         encoder.load_pretrained_vectors(opt)
+#         decoder.load_pretrained_vectors(opt)
+#
+#         optim = onmt.Optim(
+#             opt.optim, opt.learning_rate, opt.max_grad_norm,
+#             lr_decay=opt.learning_rate_decay,
+#             start_decay_at=opt.start_decay_at
+#         )
+#     else:
+#         print('Loading optimizer from checkpoint:')
+#         optim = checkpoint['optim']
+#         print(optim)
 
     optim.set_parameters(model.parameters())
 
-    if opt.train_from or opt.train_from_state_dict:
-        optim.optimizer.load_state_dict(checkpoint['optim'].optimizer.state_dict())
+    # if opt.train_from or opt.train_from_state_dict:
+    #     optim.optimizer.load_state_dict(checkpoint['optim'].optimizer.state_dict())
 
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)
