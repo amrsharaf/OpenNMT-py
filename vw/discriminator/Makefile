@@ -7,6 +7,9 @@ vw_train_filtered:
 wmt16_vw_train:
 	vw --binary data/wmt16_train.vw --passes 20 -c -k -f data/wmt16_train.model -b 29 --affix +3,-3 --spelling _ --ngram 2 --skips 1 --loss_function logistic 
 	
+baseline_vw_train:
+	vw --binary data/train_baseline.vw --passes 20 -c -k -f data/train_baseline.model -b 29 --affix +3,-3 --spelling _ --ngram 2 --skips 1 --loss_function logistic 
+	
 vw_train:
 	vw --binary data/train.vw --passes 20 -c -k -f data/train.model -b 29 --affix +3,-3 --spelling _ --ngram 2 --skips 1 --loss_function logistic 
 	
@@ -15,6 +18,9 @@ vw_test_filtered:
 
 wmt16_vw_test:
 	vw --binary -t -i data/wmt16_train.model -p data/wmt16_test.pred data/wmt16_test.vw
+
+baseline_vw_test:
+	vw --binary -t -i data/train_baseline.model -p data/test.pred -d data/test_baseline.vw
 
 vw_test:
 	vw --binary -t -i data/train.model -p data/test.pred data/test.vw
