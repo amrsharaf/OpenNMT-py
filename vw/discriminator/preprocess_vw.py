@@ -5,14 +5,15 @@ def parse_arguments():
     ap = ArgumentParser()
     ap.add_argument('--old', '-o', required=True, help='Old domain data!')
     ap.add_argument('--new', '-n', required=True, help='New domain data!')
-    ap.add_argument('--old_test', '-ot', required=True, help='Old domain data!')
-    ap.add_argument('--new_test', '-nt', required=True, help='New domain data!')
+    ap.add_argument('--vw', '-v', required=True, help='VW output file!')
+    ap.add_argument('--old_test', '-ot', required=False, help='Old domain data!')
+    ap.add_argument('--new_test', '-nt', required=False, help='New domain data!')
     args = ap.parse_args()
     return args
 
 def text_to_vw(line):
     return line.replace(':', 'COLON').replace('|', 'PIPE')
-    
+
 def read_sentences(file_path):
     with open(file_path, 'r') as reader:
         lines = [line.strip() for line in reader]
@@ -41,7 +42,7 @@ def process_sentences(old_sentences, new_sentences, output_file):
     random.shuffle(examples)
     write_to_vw_file(output_file, examples)
 
-def process_files(old_file, new_file, output_file):        
+def process_files(old_file, new_file, output_file):
     old_sentences = read_sentences(old_file)
     new_sentences = read_sentences(new_file)
     process_sentences(old_sentences, new_sentences, output_file)
@@ -51,8 +52,8 @@ def main():
     args = parse_arguments()
     print 'Reading old domain data from: ', args.old
     print 'Reading new domain data from: ', args.new
-    process_files(args.old, args.new, 'data/train.vw')
-    process_files(args.old_test, args.new_test, 'data/test.vw')
+    process_files(args.old, args.new, args.vw)
+#    process_files(args.old_test, args.new_test, 'data/test.vw')
 
 if __name__ == '__main__':
     main()
