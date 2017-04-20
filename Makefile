@@ -184,3 +184,5 @@ domain_baseline: domain_baseline_train
 	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(BASELINE_TEST_SRC) -tgt $(BASELINE_TEST_TRG) -replace_unk -verbose -output $(BASELINE_OUTPUT)
 	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
 
+tokenize_legal:
+	for l in en de; do for f in scripts/*.$l; do perl tokenizer.perl -a -no-escape -l $l -q  < $f > $f.atok; done; done
