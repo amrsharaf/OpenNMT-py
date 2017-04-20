@@ -63,6 +63,15 @@ BASELINE_MODEL_PREFIX=$(BASELINE_NAME)_$(LEARNING_RATE)
 BASELINE_SAVE_MODEL=models/$(BASELINE_MODEL_PREFIX)_model
 BASELINE_OUTPUT=$(BASELINE_NAME)_pred.txt
 
+LEGAL_TEST_SRC=data/legal/test.de.txt
+LEGAL_TEST_TRG=data/legal/test.en.txt
+LEGAL_NAME=domain-legal-gpu00
+LEGAL_DATA=data/$(LEGAL_NAME)
+LEGAL_DATA_PT=data/$(LEGAL_NAME).train.pt
+LEGAL_MODEL_PREFIX=$(LEGAL_NAME)
+LEGAL_SAVE_MODEL=models/$(LEGAL_MODEL_PREFIX)_model
+LEGAL_OUTPUT=$(LEGAL_NAME)_pred.txt
+
 get_scripts:
 	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
 	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
@@ -165,6 +174,14 @@ evaluate_saved:
 evaluate_shi:
 	python translate.py -gpu $(GPU) -model europarl_cpu.pt -src $(IWSLT_TEST_TRG) -tgt $(IWSLT_TEST_SRC) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
+
+evaluate_legal:
+	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu00_1.0_model_acc_57.14_ppl_9.63_e3.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
+
+domain_evaluate_legal:
+	python domain_translate.py -gpu $(GPU) -model models/domain-baseline-gpu00_1.0_model_acc_51.47_ppl_15.99_e1.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
 
 baseline_train:
 	python preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) 
