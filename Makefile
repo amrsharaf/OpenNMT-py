@@ -27,13 +27,12 @@ VALID_TRG=data/multi30k/val.de.atok
 TEST_SRC=data/multi30k/test.en.atok
 TEST_TRG=data/multi30k/test.de.atok
 DATA=data/multi30k.atok
-DATA_PT=data/multi30k.atok-train.pt
+DATA_PT=data/multi30k.atok.train.pt
 LEARNING_RATE=1.0
 MODEL_PREFIX=wmt16_$(LEARNING_RATE)_
 SAVE_MODEL=$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
-GPUS=0
-GPU=0
+GPU=1
 
 NEWS_TRAIN_SRC=data/wmt15-de-en/news-commentary-v10.de-en.en
 NEWS_TRAIN_TRG=data/wmt15-de-en/news-commentary-v10.de-en.de
@@ -43,12 +42,26 @@ NEWS_TEST_SRC=data/wmt15-de-en/newstest2013.en
 NEWS_TEST_TRG=data/wmt15-de-en/newstest2013.de
 NEWS_NAME=new-com-gpu00_256
 NEWS_DATA=data/$(NEWS_NAME)
-NEWS_DATA_PT=data/$(NEWS_NAME)-train.pt
+NEWS_DATA_PT=data/$(NEWS_NAME).train.pt
 NEWS_LEARNING_RATE=1.0
 NEWS_MODEL_PREFIX=$(NEWS_NAME)_$(LEARNING_RATE)
 NEWS_SAVE_MODEL=$(NEWS_MODEL_PREFIX)_model
 NEWS_OUTPUT=$(NEWS_NAME)_pred.txt
 BATCH_SIZE=256
+
+BASELINE_TRAIN_SRC=data/baseline-1M-ende/generic_train1M.ende.de
+BASELINE_TRAIN_TRG=data/baseline-1M-ende/generic_train1M.ende.en
+BASELINE_VALID_SRC=data/baseline-1M-ende/generic_valid.ende.de
+BASELINE_VALID_TRG=data/baseline-1M-ende/generic_valid.ende.en 
+BASELINE_TEST_SRC=data/baseline-1M-ende/generic_test.ende.de 
+BASELINE_TEST_TRG=data/baseline-1M-ende/generic_test.ende.en 
+BASELINE_NAME=domain-baseline-gpu00
+BASELINE_DATA=data/$(BASELINE_NAME)
+BASELINE_DATA_PT=data/$(BASELINE_NAME).train.pt
+BASELINE_LEARNING_RATE=1.0
+BASELINE_MODEL_PREFIX=$(BASELINE_NAME)_$(LEARNING_RATE)
+BASELINE_SAVE_MODEL=models/$(BASELINE_MODEL_PREFIX)_model
+BASELINE_OUTPUT=$(BASELINE_NAME)_pred.txt
 
 get_scripts:
 	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
@@ -152,4 +165,22 @@ evaluate_saved:
 evaluate_shi:
 	python translate.py -gpu $(GPU) -model europarl_cpu.pt -src $(IWSLT_TEST_TRG) -tgt $(IWSLT_TEST_SRC) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
+
+baseline_train:
+	python preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) 
+	python train.py -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU)
+
+baseline: baseline_train
+	$(eval MODEL = $(shell ls -Art $(BASELINE_MODEL_PREFIX)* | tail -n 1))
+	python translate.py -gpu $(GPU) -model $(MODEL) -src $(BASELINE_TEST_SRC) -tgt $(BASELINE_TEST_TRG) -replace_unk -verbose -output $(BASELINE_OUTPUT)
+	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
+
+domain_baseline_train:
+	python domain_preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) -domain_train_src $(IWSLT_TRAIN_SRC) -domain_valid_src $(IWSLT_VALID_SRC) 
+	python domain_train.py -adapt -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU)
+
+domain_baseline: domain_baseline_train
+	$(eval MODEL = $(shell ls -Art $(BASELINE_MODEL_PREFIX)* | tail -n 1))
+	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(BASELINE_TEST_SRC) -tgt $(BASELINE_TEST_TRG) -replace_unk -verbose -output $(BASELINE_OUTPUT)
+	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
 
