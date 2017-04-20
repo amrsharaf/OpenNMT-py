@@ -97,7 +97,6 @@ def initVocabulary(name, dataFile, vocabFile, vocabSize):
     print()
     return vocab
 
-
 def saveVocabulary(name, vocab, file):
     print('Saving ' + name + ' vocabulary to \'' + file + '\'...')
     vocab.writeFile(file)
@@ -113,15 +112,16 @@ def makeData(srcFile, tgtFile, srcDicts, tgtDicts, sort_by_len=True):
     tgtF = open(tgtFile)
 
     while True:
-        srcWords = srcF.readline().split()
-        tgtWords = tgtF.readline().split()
+        srcWords = srcF.readline()
+        tgtWords = tgtF.readline()
 
         if not srcWords or not tgtWords:
-            if srcWords and not tgtWords or not srcWords and tgtWords:
-                print('WARNING: source and target do not have the same number of sentences')
             break
 
-        if len(srcWords) <= opt.src_seq_length and len(tgtWords) <= opt.tgt_seq_length:
+        srcWords = srcWords.split()
+        tgtWords = tgtWords.split()
+
+        if (len(srcWords) > 0) and (len(tgtWords) > 0) and  len(srcWords) <= opt.src_seq_length and len(tgtWords) <= opt.tgt_seq_length:
 
             src += [srcDicts.convertToIdx(srcWords,
                                           onmt.Constants.UNK_WORD)]

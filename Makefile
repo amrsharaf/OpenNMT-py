@@ -28,12 +28,27 @@ TEST_SRC=data/multi30k/test.en.atok
 TEST_TRG=data/multi30k/test.de.atok
 DATA=data/multi30k.atok
 DATA_PT=data/multi30k.atok-train.pt
-LEARNING_RATE=0.1
+LEARNING_RATE=1.0
 MODEL_PREFIX=wmt16_$(LEARNING_RATE)_
 SAVE_MODEL=$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
-GPUS=-1
-GPU=-1
+GPUS=0
+GPU=0
+
+NEWS_TRAIN_SRC=data/wmt15-de-en/news-commentary-v10.de-en.en
+NEWS_TRAIN_TRG=data/wmt15-de-en/news-commentary-v10.de-en.de
+NEWS_VALID_SRC=data/wmt15-de-en/newstest2013.en
+NEWS_VALID_TRG=data/wmt15-de-en/newstest2013.de
+NEWS_TEST_SRC=data/wmt15-de-en/newstest2013.en
+NEWS_TEST_TRG=data/wmt15-de-en/newstest2013.de
+NEWS_NAME=new-com-gpu00_256
+NEWS_DATA=data/$(NEWS_NAME)
+NEWS_DATA_PT=data/$(NEWS_NAME)-train.pt
+NEWS_LEARNING_RATE=1.0
+NEWS_MODEL_PREFIX=$(NEWS_NAME)_$(LEARNING_RATE)
+NEWS_SAVE_MODEL=$(NEWS_MODEL_PREFIX)_model
+NEWS_OUTPUT=$(NEWS_NAME)_pred.txt
+BATCH_SIZE=256
 
 get_scripts:
 	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
@@ -79,6 +94,15 @@ wmt16: wmt16_train
 	python translate.py -gpu 0 -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 
+get_wmt15:
+	wget https://s3.amazonaws.com/opennmt-trainingdata/wmt15-de-en.tgz
+
+new_domain:
+	echo 'wmt16_1.0__multi30k_model_acc_67.67_ppl_10.06_e13.pt'
+	$(eval MODEL = $(shell ls -Art $(MODEL_PREFIX)* | tail -n 1))
+	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(IWSLT_TEST_SRC) -tgt $(IWSLT_TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+	perl multi-bleu.perl $(IWSLT_TEST_TRG) < $(OUTPUT)
+
 domain_wmt16_train:
 	python domain_preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) -domain_train_src $(IWSLT_TRAIN_SRC) -domain_valid_src $(IWSLT_VALID_SRC) -domain_test_src $(IWSLT_TEST_SRC) -test_src $(TEST_SRC) -test_tgt $(TEST_TRG) 
 	python domain_train.py -adapt -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus $(GPUS) -learning_rate $(LEARNING_RATE) -batch_size 32
@@ -108,3 +132,13 @@ train:
 
 train_g:
 	python train.py -data data/demo-train.pt -save_model model -adapt -learning_rate 0.0001 -gpu 0
+
+domain_news_com_train:
+	python domain_preprocess.py -train_src $(NEWS_TRAIN_SRC) -train_tgt $(NEWS_TRAIN_TRG) -valid_src $(NEWS_VALID_SRC)  -valid_tgt $(NEWS_VALID_TRG) -save_data $(NEWS_DATA) -domain_train_src $(IWSLT_TRAIN_SRC) -domain_valid_src $(IWSLT_VALID_SRC) -domain_test_src $(IWSLT_TEST_SRC) -test_src $(NEWS_TEST_SRC) -test_tgt $(NEWS_TEST_TRG) 
+	python domain_train.py -adapt -data $(NEWS_DATA_PT) -save_model $(NEWS_SAVE_MODEL)  -gpus $(GPUS) -learning_rate $(NEWS_LEARNING_RATE) -batch_size $(BATCH_SIZE)
+
+domain_news_com: domain_news_com_train
+	$(eval MODEL = $(shell ls -Art $(NEWS_MODEL_PREFIX)* | tail -n 1))
+	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(NEWS_TEST_SRC) -tgt $(NEWS_TEST_TRG) -replace_unk -verbose -output $(NEWS_OUTPUT)
+	perl multi-bleu.perl $(NEWS_TEST_TRG) < $(NEWS_OUTPUT)
+

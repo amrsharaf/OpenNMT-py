@@ -234,14 +234,12 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         report_loss, report_tgt_words, report_src_words, report_num_correct = 0, 0, 0, 0
         start = time.time()
         for i in range(len(trainData)):
-
             batchIdx = batchOrder[i] if epoch > opt.curriculum else i
             batch = trainData[batchIdx][:-1] # exclude original indices
 
             model.zero_grad()
             if opt.adapt:
-                batchIdxAdapt = batchOrderAdapt[i] if epoch >= opt.curriculum else i
-                batch_len = len(batch[0][1])
+                batchIdxAdapt = batchOrderAdapt[i % len(batchOrderAdapt) ] if epoch >= opt.curriculum else (i%len(batchOrderAdapt))
                 domain_batch = domain_train[batchIdxAdapt][:-1]
 
                 outputs, old_domain, new_domain = model(batch, domain_batch=domain_batch)
@@ -265,9 +263,8 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
             # We do the domain adaptation backward call here
             if opt.adapt:
-                outputs.backward(gradOutput, retain_variables=True)
-                model.zero_grad()
-                discriminator_loss.backward()
+                outputs.backward(gradOutput)
+#                discriminator_loss.backward()
 #                model.encoder.zero_grad()
 #                model.decoder.zero_grad()
 #                model.discriminator.zero_grad()
