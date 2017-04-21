@@ -1,21 +1,22 @@
-DATA_DIR=../data/baseline1m
+DATA_DIR=data/baseline-1M-ende
 SCRIPT_DIR=./scipts
-BPE_DIR=../subword-nmt
+BPE_DIR=data/subword-nmt
 # BPE size
 SRC_CODE_SIZE=20000
 TRG_CODE_SIZE=20000
 S='de'
 T='en'
 
-if [ -z $PYTHON ]; then
-    if [ -n `which python3` ]; then
-        export PYTHON=python3
-    else
-        if [ -n `which python`]; then
-            export PYTHON=python
-        fi
-    fi 
-fi
+PYTHON=python
+#if [ -z $PYTHON ]; then
+#    if [ -n `which python3` ]; then
+#        export PYTHON=python3
+#    else
+#        if [ -n `which python`]; then
+#            export PYTHON=python
+#        fi
+#    fi 
+#fi
 echo "Using $PYTHON"
 
 # get byte pair encoding
