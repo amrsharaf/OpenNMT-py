@@ -28,9 +28,8 @@ TEST_SRC=data/multi30k/test.en.atok
 TEST_TRG=data/multi30k/test.de.atok
 DATA=data/multi30k.atok
 DATA_PT=data/multi30k.atok.train.pt
-LEARNING_RATE=1.0
-MODEL_PREFIX=wmt16_$(LEARNING_RATE)_
-SAVE_MODEL=$(MODEL_PREFIX)_multi30k_model
+MODEL_PREFIX=wmt16
+SAVE_MODEL=models/$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
 GPU=1
 
@@ -108,11 +107,11 @@ wmt14:
 	perl multi-bleu.perl $(WMT14_TEST_TRG) < $(WMT14_OUTPUT)
 
 wmt16_train:
-	python preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) 
-	python train.py -data $(DATA_PT) -save_model $(SAVE_MODEL)  -gpus 1 -learning_rate 0.1 -batch_size 32
+#	python preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) 
+	python train.py -data data/multi30k/all_bpe.train.pt -save_model $(SAVE_MODEL)  -gpus $(GPU)
 
 wmt16: wmt16_train
-	$(eval MODEL = $(shell ls -Art wmt16* | tail -n 1))
+	$(eval MODEL = $(shell ls -Art models/wmt16* | tail -n 1))
 	python translate.py -gpu 0 -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 

@@ -1,5 +1,5 @@
-DATA_DIR=data/baseline-1M-ende
-SCRIPT_DIR=./scipts
+DATA_DIR=data/multi30k
+SCRIPT_DIR=./scripts
 BPE_DIR=data/subword-nmt
 # BPE size
 SRC_CODE_SIZE=20000
