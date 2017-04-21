@@ -1,4 +1,4 @@
-DATA_DIR=data/multi30k
+DATA_DIR=data/wmt15-de-en
 SCRIPT_DIR=./scripts
 BPE_DIR=data/subword-nmt
 # BPE size

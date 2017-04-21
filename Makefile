@@ -31,6 +31,7 @@ DATA_PT=data/multi30k.atok.train.pt
 MODEL_PREFIX=wmt16
 SAVE_MODEL=models/$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
+
 GPU=1
 
 NEWS_TRAIN_SRC=data/wmt15-de-en/news-commentary-v10.de-en.en
@@ -48,12 +49,12 @@ NEWS_SAVE_MODEL=$(NEWS_MODEL_PREFIX)_model
 NEWS_OUTPUT=$(NEWS_NAME)_pred.txt
 BATCH_SIZE=256
 
-BASELINE_TRAIN_SRC=data/baseline-1M-ende/generic_train1M.ende.de
-BASELINE_TRAIN_TRG=data/baseline-1M-ende/generic_train1M.ende.en
-BASELINE_VALID_SRC=data/baseline-1M-ende/generic_valid.ende.de
-BASELINE_VALID_TRG=data/baseline-1M-ende/generic_valid.ende.en 
-BASELINE_TEST_SRC=data/baseline-1M-ende/generic_test.ende.de 
-BASELINE_TEST_TRG=data/baseline-1M-ende/generic_test.ende.en 
+BASELINE_TRAIN_SRC=data/baseline-1M-ende/train.de
+BASELINE_TRAIN_TRG=data/baseline-1M-ende/train.en
+BASELINE_VALID_SRC=data/baseline-1M-ende/valid.de
+BASELINE_VALID_TRG=data/baseline-1M-ende/valid.en 
+BASELINE_TEST_SRC=data/baseline-1M-ende/test.de 
+BASELINE_TEST_TRG=data/baseline-1M-ende/test.en 
 BASELINE_NAME=domain-baseline-gpu00
 BASELINE_DATA=data/$(BASELINE_NAME)
 BASELINE_DATA_PT=data/$(BASELINE_NAME).train.pt
@@ -70,6 +71,17 @@ LEGAL_DATA_PT=data/$(LEGAL_NAME).train.pt
 LEGAL_MODEL_PREFIX=$(LEGAL_NAME)
 LEGAL_SAVE_MODEL=models/$(LEGAL_MODEL_PREFIX)_model
 LEGAL_OUTPUT=$(LEGAL_NAME)_pred.txt
+
+
+
+
+ALL_TEST_SRC=data/wmt15-de-en/test.de.tok.bpe
+ALL_TEST_TRG=data/wmt15-de-en/test.en.tok.bpe
+ALL_MODEL_PREFIX=all.tmux
+ALL_SAVE_MODEL=models/$(ALL_MODEL_PREFIX)_model
+ALL_OUTPUT=$(ALL_MODEL_PREFIX).pred
+
+
 
 get_scripts:
 	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
@@ -105,6 +117,30 @@ wmt14:
 	$(eval MODEL = $(shell ls -Art wmt14_model* | tail -n 1))
 	python translate.py -gpu 0 -model $(MODEL) -src $(WMT14_TEST_SRC) -tgt $(WMT14_TEST_TRG) -replace_unk -verbose -output $(WMT14_OUTPUT)
 	perl multi-bleu.perl $(WMT14_TEST_TRG) < $(WMT14_OUTPUT)
+
+
+
+
+
+
+
+all_train:
+	python train.py -data data/wmt15-de-en/all_bpe.train.pt -save_model $(ALL_SAVE_MODEL)  -gpus $(GPU)
+
+all: all_train
+	$(eval MODEL = $(shell ls -Art models/$(ALL_MODEL_PREFIX)* | tail -n 1))
+	python translate.py -gpu $(GPU) -model $(MODEL) -src $(ALL_TEST_SRC) -tgt $(ALL_TEST_TRG) -replace_unk -verbose -output $(ALL_OUTPUT)
+	perl multi-bleu.perl $(ALL_TEST_TRG) < $(ALL_OUTPUT)
+
+
+
+
+
+
+
+
+
+
 
 wmt16_train:
 #	python preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) 
@@ -175,11 +211,11 @@ evaluate_shi:
 	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
 
 evaluate_legal:
-	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu00_1.0_model_acc_57.95_ppl_8.94_e4.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu00_1.0_model_acc_59.08_ppl_8.07_e6.pt  -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
 	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
 
 domain_evaluate_legal:
-	python domain_translate.py -gpu $(GPU) -model models/domain-baseline-gpu00_1.0_model_acc_51.47_ppl_15.99_e1.pt_acc_51.45_ppl_15.97_e1.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	python domain_translate.py -gpu $(GPU) -model models/domain-baseline-gpu00__model_acc_58.92_ppl_7.68_e6.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
 	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
 
 baseline_train:
@@ -195,7 +231,8 @@ domain_baseline_train:
 	python domain_preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) -domain_train_src $(LEGAL_TEST_SRC) -domain_valid_src $(LEGAL_TEST_TRG) 
 	python domain_train.py -adapt -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU)
 
-domain_baseline: domain_baseline_train
+#domain_baseline: domain_baseline_train
+domain_baseline: 
 	$(eval MODEL = $(shell ls -Art $(BASELINE_MODEL_PREFIX)* | tail -n 1))
 	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(BASELINE_TEST_SRC) -tgt $(BASELINE_TEST_TRG) -replace_unk -verbose -output $(BASELINE_OUTPUT)
 	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
