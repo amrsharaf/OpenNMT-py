@@ -263,14 +263,13 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
 
             # We do the domain adaptation backward call here
             if opt.adapt:
-                outputs.backward(gradOutput)
-#                discriminator_loss.backward()
-#                model.encoder.zero_grad()
+                outputs.backward(gradOutput, retain_variables=True)
+#                model.zero_grad()
+                discriminator_loss.backward()
 #                model.decoder.zero_grad()
 #                model.discriminator.zero_grad()
             else:
                 outputs.backward(gradOutput)
-
 
             # update the parameters
             optim.step()
@@ -298,9 +297,9 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
                       report_tgt_words/(time.time()-start),
                       time.time()-start_time))
 
-#                if opt.adapt:
-#                    print "discrim_correct: ", discrim_correct
-#                    print "num_discrim_elements: ", num_discrim_elements, '\n'
+                if opt.adapt:
+                    print "discrim_correct: ", discrim_correct
+                    print "num_discrim_elements: ", num_discrim_elements, '\n'
 
                 report_loss = report_tgt_words = report_src_words = report_num_correct = 0
                 start = time.time()
@@ -334,7 +333,8 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         train_loss, train_acc, train_discrim_acc = trainEpoch(epoch)
         print('Train perplexity: %g' % math.exp(min(train_loss, 100)))
         print('Train accuracy: %g' % (train_acc*100))
-#        print('Train discriminator accuracy: %g' % (train_discrim_acc * 100))
+        if opt.adapt:
+            print('Train discriminator accuracy: %g' % (train_discrim_acc * 100))
 
         #  (2) evaluate on the validation set
         valid_loss, valid_acc = eval(model, criterion, validData)
@@ -343,7 +343,7 @@ def trainModel(model, trainData, validData, domain_train, domain_valid, dataset,
         print('Validation accuracy: %g' % (valid_acc*100))
         if opt.adapt:
             valid_discrim_acc = domain_eval(model, validData, domain_valid)
-#            print('Validation discriminator accuracy: %g' % (valid_discrim_acc * 100))
+            print('Validation discriminator accuracy: %g' % (valid_discrim_acc * 100))
         #  (3) update the learning rate
         optim.updateLearningRate(valid_loss, epoch)
 

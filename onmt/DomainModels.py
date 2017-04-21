@@ -171,6 +171,7 @@ class NMTModel(nn.Module):
                                  self._fix_enc_hidden(enc_hidden_adapt[1]))
 
             old_reverse_outpout = self.reverse_gradient((enc_hidden[1].transpose(0,1).contiguous().view(old_batch_size,-1)))
+#            lmda = 1.0 * 0.1
             lmda = -1.0 * 0.1
             h_old = old_reverse_outpout.register_hook(lambda grad: grad * lmda)
             old_domain = self.discriminator(old_reverse_outpout)

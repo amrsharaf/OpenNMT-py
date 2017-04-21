@@ -176,11 +176,11 @@ evaluate_shi:
 	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
 
 evaluate_legal:
-	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu00_1.0_model_acc_57.14_ppl_9.63_e3.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu00_1.0_model_acc_57.95_ppl_8.94_e4.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
 	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
 
 domain_evaluate_legal:
-	python domain_translate.py -gpu $(GPU) -model models/domain-baseline-gpu00_1.0_model_acc_51.47_ppl_15.99_e1.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	python domain_translate.py -gpu $(GPU) -model models/domain-baseline-gpu00_1.0_model_acc_51.47_ppl_15.99_e1.pt_acc_51.45_ppl_15.97_e1.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
 	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
 
 baseline_train:
@@ -193,7 +193,7 @@ baseline: baseline_train
 	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
 
 domain_baseline_train:
-	python domain_preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) -domain_train_src $(IWSLT_TRAIN_SRC) -domain_valid_src $(IWSLT_VALID_SRC) 
+	python domain_preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) -domain_train_src $(LEGAL_TEST_SRC) -domain_valid_src $(LEGAL_TEST_TRG) 
 	python domain_train.py -adapt -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU)
 
 domain_baseline: domain_baseline_train
