@@ -58,8 +58,7 @@ BASELINE_TEST_TRG=data/baseline-1M-ende/test.en
 BASELINE_NAME=domain-baseline-gpu00
 BASELINE_DATA=data/$(BASELINE_NAME)
 BASELINE_DATA_PT=data/$(BASELINE_NAME).train.pt
-BASELINE_LEARNING_RATE=1.0
-BASELINE_MODEL_PREFIX=$(BASELINE_NAME)_$(LEARNING_RATE)
+BASELINE_MODEL_PREFIX=$(BASELINE_NAME)
 BASELINE_SAVE_MODEL=models/$(BASELINE_MODEL_PREFIX)_model
 BASELINE_OUTPUT=$(BASELINE_NAME)_pred.txt
 
@@ -72,16 +71,11 @@ LEGAL_MODEL_PREFIX=$(LEGAL_NAME)
 LEGAL_SAVE_MODEL=models/$(LEGAL_MODEL_PREFIX)_model
 LEGAL_OUTPUT=$(LEGAL_NAME)_pred.txt
 
-
-
-
 ALL_TEST_SRC=data/wmt15-de-en/test.de.tok.bpe
 ALL_TEST_TRG=data/wmt15-de-en/test.en.tok.bpe
 ALL_MODEL_PREFIX=all.tmux
 ALL_SAVE_MODEL=models/$(ALL_MODEL_PREFIX)_model
 ALL_OUTPUT=$(ALL_MODEL_PREFIX).pred
-
-
 
 get_scripts:
 	wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
@@ -231,8 +225,7 @@ domain_baseline_train:
 	python domain_preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) -domain_train_src $(LEGAL_TEST_SRC) -domain_valid_src $(LEGAL_TEST_TRG) 
 	python domain_train.py -adapt -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU)
 
-#domain_baseline: domain_baseline_train
-domain_baseline: 
+domain_baseline: domain_baseline_train
 	$(eval MODEL = $(shell ls -Art $(BASELINE_MODEL_PREFIX)* | tail -n 1))
 	python domain_translate.py -gpu $(GPU) -model $(MODEL) -src $(BASELINE_TEST_SRC) -tgt $(BASELINE_TEST_TRG) -replace_unk -verbose -output $(BASELINE_OUTPUT)
 	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
