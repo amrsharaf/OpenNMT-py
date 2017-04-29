@@ -62,6 +62,8 @@ BASELINE_MODEL_PREFIX=$(BASELINE_NAME)
 BASELINE_SAVE_MODEL=models/$(BASELINE_MODEL_PREFIX)_model
 BASELINE_OUTPUT=$(BASELINE_NAME)_pred.txt
 
+#LEGAL_TEST_SRC=data/baseline-1M-ende/test.de
+#LEGAL_TEST_TRG=data/baseline-1M-ende/test.en
 LEGAL_TEST_SRC=data/legal/test.de.txt
 LEGAL_TEST_TRG=data/legal/test.en.txt
 LEGAL_NAME=domain-legal-gpu00
@@ -112,12 +114,6 @@ wmt14:
 	python translate.py -gpu 0 -model $(MODEL) -src $(WMT14_TEST_SRC) -tgt $(WMT14_TEST_TRG) -replace_unk -verbose -output $(WMT14_OUTPUT)
 	perl multi-bleu.perl $(WMT14_TEST_TRG) < $(WMT14_OUTPUT)
 
-
-
-
-
-
-
 all_train:
 	python train.py -data data/wmt15-de-en/all_bpe.train.pt -save_model $(ALL_SAVE_MODEL)  -gpus $(GPU)
 
@@ -125,16 +121,6 @@ all: all_train
 	$(eval MODEL = $(shell ls -Art models/$(ALL_MODEL_PREFIX)* | tail -n 1))
 	python translate.py -gpu $(GPU) -model $(MODEL) -src $(ALL_TEST_SRC) -tgt $(ALL_TEST_TRG) -replace_unk -verbose -output $(ALL_OUTPUT)
 	perl multi-bleu.perl $(ALL_TEST_TRG) < $(ALL_OUTPUT)
-
-
-
-
-
-
-
-
-
-
 
 wmt16_train:
 #	python preprocess.py -train_src $(TRAIN_SRC) -train_tgt $(TRAIN_TRG) -valid_src $(VALID_SRC)  -valid_tgt $(VALID_TRG) -save_data $(DATA) 
@@ -205,7 +191,7 @@ evaluate_shi:
 	perl multi-bleu.perl $(IWSLT_TEST_SRC) < $(OUTPUT)
 
 evaluate_legal:
-	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu00_1.0_model_acc_59.08_ppl_8.07_e6.pt  -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
+	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model ../clean/OpenNMT-py/models/baseline-gpu01_1.0_model_acc_62.73_ppl_6.44_e13.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
 	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
 
 domain_evaluate_legal:
@@ -232,3 +218,14 @@ domain_baseline: domain_baseline_train
 
 tokenize_legal:
 	for l in en de; do for f in scripts/*.$l; do perl tokenizer.perl -a -no-escape -l $l -q  < $f > $f.atok; done; done
+
+BPE_DIR=data/subword-nmt
+BPE_CODE= data/wmt15-de-en/de.bpe_code
+TEST_SRC_BPE=$(TEST_SRC).bpe.wmt15
+
+evaluate:
+	# python $(BPE_DIR)/apply_bpe.py -c $(BPE_CODE) < $(TEST_SRC) > $(TEST_SRC_BPE)
+	python translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC_BPE) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+	python scripts/bpe_to_txt.py -i $(OUTPUT) -o $(BPE_OUTPUT)
+	perl multi-bleu.perl $(TEST_TRG) < $(BPE_OUTPUT)
+

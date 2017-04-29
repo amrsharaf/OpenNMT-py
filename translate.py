@@ -6,6 +6,7 @@ import torch
 import argparse
 import math
 import sys
+import codecs
 # reload(sys)
 # sys.setdefaultencoding('utf8')
 
@@ -49,8 +50,8 @@ parser.add_argument('-gpu', type=int, default=-1,
 
 def reportScore(name, scoreTotal, wordsTotal):
     print("%s AVG SCORE: %.4f, %s PPL: %.4f" % (
-        name, scoreTotal / wordsTotal,
-        name, math.exp(-scoreTotal/wordsTotal)))
+        name, scoreTotal / (wordsTotal + 1e-6),
+        name, math.exp(-scoreTotal/(wordsTotal + 1e-6))))
 
 def addone(f):
     for line in f:
@@ -65,7 +66,7 @@ def main():
 
     translator = onmt.Translator(opt)
 
-    outF = open(opt.output, 'w')
+    outF = codecs.open(opt.output, 'w', 'utf-8')
 
     predScoreTotal, predWordsTotal, goldScoreTotal, goldWordsTotal = 0, 0, 0, 0
 

@@ -9,7 +9,9 @@ class Translator(object):
         self.opt = opt
         self.tt = torch.cuda if opt.cuda else torch
 
+        print('Loading model')
         checkpoint = torch.load(opt.model)
+        print('Finish loading model')
 
         model_opt = checkpoint['opt']
         self.src_dict = checkpoint['dicts']['src']
