@@ -224,8 +224,10 @@ BPE_CODE= data/wmt15-de-en/de.bpe_code
 TEST_SRC_BPE=$(TEST_SRC).bpe.wmt15
 
 evaluate:
-	# python $(BPE_DIR)/apply_bpe.py -c $(BPE_CODE) < $(TEST_SRC) > $(TEST_SRC_BPE)
-	python translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC_BPE) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
-	python scripts/bpe_to_txt.py -i $(OUTPUT) -o $(BPE_OUTPUT)
-	perl multi-bleu.perl $(TEST_TRG) < $(BPE_OUTPUT)
+	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
+#	 python $(BPE_DIR)/apply_bpe.py -c $(BPE_CODE) < $(TEST_SRC) > $(TEST_SRC_BPE)
+#	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC_BPE) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+#	python scripts/bpe_to_txt.py -i $(OUTPUT) -o $(BPE_OUTPUT)
+#	perl multi-bleu.perl $(TEST_TRG) < $(BPE_OUTPUT)
 
