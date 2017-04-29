@@ -6,8 +6,8 @@ import torch
 import argparse
 import math
 import sys
-reload(sys)
-sys.setdefaultencoding('utf8')
+# reload(sys)
+# sys.setdefaultencoding('utf8')
 
 parser = argparse.ArgumentParser(description='translate.py')
 
