@@ -1,5 +1,5 @@
 NAME=$1
-DATA_DIR=../data/$NAME
+DATA_DIR=./data/$NAME
 SCRIPT_DIR=./scripts
 BPE_DIR=./data/subword-nmt
 # BPE size

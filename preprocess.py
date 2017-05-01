@@ -1,3 +1,4 @@
+import codecs
 import onmt
 
 import argparse

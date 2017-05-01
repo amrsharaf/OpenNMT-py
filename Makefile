@@ -115,7 +115,7 @@ wmt14:
 	perl multi-bleu.perl $(WMT14_TEST_TRG) < $(WMT14_OUTPUT)
 
 all_train:
-	python train.py -data data/wmt15-de-en/all_bpe.train.pt -save_model $(ALL_SAVE_MODEL)  -gpus $(GPU)
+	python train.py -data $(PT_FILE)  -save_model $(MODEL) -gpus $(GPU) -brnn
 
 all: all_train
 	$(eval MODEL = $(shell ls -Art models/$(ALL_MODEL_PREFIX)* | tail -n 1))
