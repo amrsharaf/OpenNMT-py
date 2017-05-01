@@ -26,6 +26,8 @@ class Encoder(nn.Module):
     def load_pretrained_vectors(self, opt):
         if opt.pre_word_vecs_enc is not None:
             pretrained = torch.load(opt.pre_word_vecs_enc)
+            print(pretrained.size())
+            print(self.word_lut.weight.size())
             self.word_lut.weight.data.copy_(pretrained)
 
     def forward(self, input, hidden=None):

@@ -32,7 +32,7 @@ MODEL_PREFIX=wmt16
 SAVE_MODEL=models/$(MODEL_PREFIX)_multi30k_model
 OUTPUT=pred.txt
 
-GPU=1
+GPU=0
 
 NEWS_TRAIN_SRC=data/wmt15-de-en/news-commentary-v10.de-en.en
 NEWS_TRAIN_TRG=data/wmt15-de-en/news-commentary-v10.de-en.de
@@ -49,13 +49,13 @@ NEWS_SAVE_MODEL=$(NEWS_MODEL_PREFIX)_model
 NEWS_OUTPUT=$(NEWS_NAME)_pred.txt
 BATCH_SIZE=256
 
-BASELINE_TRAIN_SRC=data/baseline-1M-ende/train.de
-BASELINE_TRAIN_TRG=data/baseline-1M-ende/train.en
-BASELINE_VALID_SRC=data/baseline-1M-ende/valid.de
-BASELINE_VALID_TRG=data/baseline-1M-ende/valid.en 
-BASELINE_TEST_SRC=data/baseline-1M-ende/test.de 
-BASELINE_TEST_TRG=data/baseline-1M-ende/test.en 
-BASELINE_NAME=domain-baseline-gpu00
+BASELINE_TRAIN_SRC=data/baseline-1M-ende/train.de.tok
+BASELINE_TRAIN_TRG=data/baseline-1M-ende/train.en.tok
+BASELINE_VALID_SRC=data/baseline-1M-ende/valid.de.tok
+BASELINE_VALID_TRG=data/baseline-1M-ende/valid.en.tok
+BASELINE_TEST_SRC=data/baseline-1M-ende/test.de.tok 
+BASELINE_TEST_TRG=data/baseline-1M-ende/test.en.tok 
+BASELINE_NAME=no_autoencoder
 BASELINE_DATA=data/$(BASELINE_NAME)
 BASELINE_DATA_PT=data/$(BASELINE_NAME).train.pt
 BASELINE_MODEL_PREFIX=$(BASELINE_NAME)
@@ -197,6 +197,33 @@ evaluate_legal:
 domain_evaluate_legal:
 	python domain_translate.py -gpu $(GPU) -model models/domain-baseline-gpu00__model_acc_58.92_ppl_7.68_e6.pt -src $(LEGAL_TEST_SRC) -tgt $(LEGAL_TEST_TRG) -replace_unk -verbose -output $(LEGAL_OUTPUT)
 	perl multi-bleu.perl $(LEGAL_TEST_TRG) < $(LEGAL_OUTPUT)
+
+
+
+
+
+
+
+
+
+
+
+autoencode_train:
+	python preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) 
+#	python train.py -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU) -batch_size 128 -layers 1 -word_vec_size 200 -rnn_size 200 -pre_word_vecs_enc ../GloVe/save-embeddings-200.pt
+	python train.py -data $(BASELINE_DATA_PT) -save_model $(BASELINE_SAVE_MODEL)  -gpus $(GPU) -batch_size 128 -layers 1 -word_vec_size 200 -rnn_size 200
+
+autoencode: autoencode_train
+	$(eval MODEL = $(shell ls -Art $(BASELINE_MODEL_PREFIX)* | tail -n 1))
+	python translate.py -gpu $(GPU) -model $(MODEL) -src $(BASELINE_TEST_SRC) -tgt $(BASELINE_TEST_TRG) -replace_unk -verbose -output $(BASELINE_OUTPUT)
+	perl multi-bleu.perl $(BASELINE_TEST_TRG) < $(BASELINE_OUTPUT)
+
+
+
+
+
+
+
 
 baseline_train:
 	python preprocess.py -train_src $(BASELINE_TRAIN_SRC) -train_tgt $(BASELINE_TRAIN_TRG) -valid_src $(BASELINE_VALID_SRC)  -valid_tgt $(BASELINE_VALID_TRG) -save_data $(BASELINE_DATA) 

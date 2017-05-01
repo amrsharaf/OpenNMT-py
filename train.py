@@ -108,7 +108,7 @@ parser.add_argument('-gpus', default=[], nargs='+', type=int,
 parser.add_argument('-log_interval', type=int, default=50,
                     help="Print stats at this interval.")
 
-print parser.parse_args()
+print(parser.parse_args())
 
 opt = parser.parse_args()
 
