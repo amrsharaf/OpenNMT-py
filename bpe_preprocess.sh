@@ -1,7 +1,7 @@
 NAME=$1
 DATA_DIR=../data/$NAME
 SCRIPT_DIR=./scripts
-BPE_DIR=./subword
+BPE_DIR=./data/subword-nmt
 # BPE size
 SRC_CODE_SIZE=20000
 TRG_CODE_SIZE=20000
