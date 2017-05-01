@@ -1,22 +1,22 @@
-DATA_DIR=data/wmt15-de-en
+NAME=$1
+DATA_DIR=../data/$NAME
 SCRIPT_DIR=./scripts
-BPE_DIR=data/subword-nmt
+BPE_DIR=./subword
 # BPE size
 SRC_CODE_SIZE=20000
 TRG_CODE_SIZE=20000
 S='de'
 T='en'
 
-PYTHON=python
-#if [ -z $PYTHON ]; then
-#    if [ -n `which python3` ]; then
-#        export PYTHON=python3
-#    else
-#        if [ -n `which python`]; then
-#            export PYTHON=python
-#        fi
-#    fi 
-#fi
+if [ -z $PYTHON ]; then
+    if [ -n `which python3` ]; then
+        export PYTHON=python3
+    else
+        if [ -n `which python`]; then
+            export PYTHON=python
+        fi
+    fi 
+fi
 echo "Using $PYTHON"
 
 # get byte pair encoding
@@ -27,43 +27,35 @@ if [ ! -d "${BPE_DIR}" ]; then
     git clone ${BPE_REPO} ${BPE_DIR}
 fi
 
-encode () {
-    if [ ! -f "$3" ]; then
-        $PYTHON $P2/apply_bpe.py -c $1 < $2 > $3 
-    else
-        echo "$3 exists, pass"
-    fi
-}
-
 # tokenize
 if [ ! -f $DATA_DIR/train.${S}.tok ]; then
     echo "Tokenizing train source..."
-    perl $SCRIPT_DIR/tokenizer.perl -threads 5 -l ${S} < $DATA_DIR/train.${S} > $DATA_DIR/train.${S}.tok
+    perl $SCRIPT_DIR/tokenizer.perl -threads 8 -l ${S} < $DATA_DIR/train.${S} > $DATA_DIR/train.${S}.tok
 fi
 
 if [ ! -f $DATA_DIR/train.${T}.tok ]; then
     echo "Tokenizing train target..."
-    perl $SCRIPT_DIR/tokenizer.perl -threads 5 -l ${T} < $DATA_DIR/train.${T} > $DATA_DIR/train.${T}.tok
+    perl $SCRIPT_DIR/tokenizer.perl -threads 8 -l ${T} < $DATA_DIR/train.${T} > $DATA_DIR/train.${T}.tok
 fi
 
 if [ ! -f $DATA_DIR/valid.${S}.tok ]; then
     echo "Tokenizing valid source..."
-    perl $SCRIPT_DIR/tokenizer.perl -threads 5 -l ${S} < $DATA_DIR/valid.${S} > $DATA_DIR/valid.${S}.tok
+    perl $SCRIPT_DIR/tokenizer.perl -threads 8 -l ${S} < $DATA_DIR/valid.${S} > $DATA_DIR/valid.${S}.tok
 fi
 
 if [ ! -f $DATA_DIR/valid.${T}.tok ]; then
     echo "Tokenizing valid target..."
-    perl $SCRIPT_DIR/tokenizer.perl -threads 5 -l ${T} < $DATA_DIR/valid.${T} > $DATA_DIR/valid.${T}.tok
+    perl $SCRIPT_DIR/tokenizer.perl -threads 8 -l ${T} < $DATA_DIR/valid.${T} > $DATA_DIR/valid.${T}.tok
 fi
 
 if [ ! -f $DATA_DIR/test.${S}.tok ]; then
     echo "Tokenizing test source..."
-    perl $SCRIPT_DIR/tokenizer.perl -threads 5 -l ${S} < $DATA_DIR/test.${S} > $DATA_DIR/test.${S}.tok
+    perl $SCRIPT_DIR/tokenizer.perl -threads 8 -l ${S} < $DATA_DIR/test.${S} > $DATA_DIR/test.${S}.tok
 fi
 
 if [ ! -f  $DATA_DIR/test.${T}.tok ]; then
     echo "Tokenizing test target..."
-    perl $SCRIPT_DIR/tokenizer.perl -threads 5 -l ${T} < $DATA_DIR/test.${T} > $DATA_DIR/test.${T}.tok
+    perl $SCRIPT_DIR/tokenizer.perl -threads 8 -l ${T} < $DATA_DIR/test.${T} > $DATA_DIR/test.${T}.tok
 fi
 
 # learn BPE coding from training set
@@ -95,4 +87,11 @@ encode $DATA_DIR/${S}.bpe_code $DATA_DIR/test.${S}.tok $DATA_DIR/test.${S}.tok.b
 encode $DATA_DIR/${T}.bpe_code $DATA_DIR/test.${T}.tok $DATA_DIR/test.${T}.tok.bpe
 
 # create dictionaries and stuff
-python preprocess.py -train_src $DATA_DIR/train.${S}.tok.bpe -train_tgt $DATA_DIR/train.${T}.tok.bpe -valid_src $DATA_DIR/valid.${S}.tok.bpe -valid_tgt $DATA_DIR/valid.${T}.tok.bpe -save_data $DATA_DIR/all_bpe -lower
+python preprocess.py \
+    -train_src $DATA_DIR/train.${S}.tok.bpe \
+    -train_tgt $DATA_DIR/train.${T}.tok.bpe \
+    -valid_src $DATA_DIR/valid.${S}.tok.bpe \
+    -valid_tgt $DATA_DIR/valid.${T}.tok.bpe \
+    -src_bpe $DATA_DIR/${S}.bpe_code \
+    -tgt_bpe $DATA_DIR/${T}.bpe_code
+    -save_data $DATA_DIR/${NAME}.bpe -lower
