@@ -55,23 +55,15 @@ splits:
 
 head_clean_xenc_and_splits: head_clean_and_xenc splits
 
-
-SRC_BPE_CODE=../wmt15-de-en/de.bpe_code
-TGT_BPE_CODE=../data/wmt15-de-en/en.bpe_code
-
-python $(BPE_DIR)/apply_bpe.py -c $(SRC_BPE_CODE) < $(TRAIN_DATA_DIR)/de_$(NAME).txt > $(TRAIN_DATA_DIR)/de_$(NAME).bpe
-python $(BPE_DIR)/apply_bpe.py -c $(TGT_BPE_CODE) < $(TRAIN_DATA_DIR)/en_$(NAME).txt > $(TRAIN_DATA_DIR)/en_$(NAME).bpe
-
-python preprocess.py \
-    -train_src $(TRAIN_DATA_DIR)/de_$NAME.bpe \
-    -train_tgt $(TRAIN_DATA_DIR)/en_$NAME.bpe \
-    -valid_src $(VALID_DATA_DIR)/valid.de.tok.bpe \
-    -valid_tgt $(VALID_DATA_DIR)/valid.en.tok.bpe \
-    -save_data $(TRAIN_DATA_DIR)/all_$(NAME).bpe -lower
 bpe:
-	bash TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt ../../bpe_encode.sh 10
-	bash ../../bpe_encode.sh 20
-	bash ../../bpe_encode.sh 30
-	bash ../../bpe_encode.sh 40
-	bash ../../bpe_encode.sh 60
-	bash ../../bpe_encode.sh 85
+	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 10
+	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 20
+	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 30
+	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 40
+	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 60
+	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 85
+
+head_clean_xenc_splits_and_bpe: head_clean_xenc_and_splits bpe
+
+train:
+	cd ../.. && make all_train MODEL=models/$(N_SENTENCES)/$(SIZE) PT_FILE=data/amazon/$(N_SENTENCES)/all_$(SIZE).bpe.train.pt GPU=$(GPU)
