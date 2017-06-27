@@ -50,25 +50,10 @@ splits:
 	mkdir -p $(N_SENTENCES)
 	$(foreach var,$(PERCENTAGES),python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p $(var) -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de;)
 
-#splits:
-#	mkdir -p $(N_SENTENCES)
-#	python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p 10 -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de
-#	python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p 20 -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de
-#	python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p 30 -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de
-#	python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p 40 -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de
-#	python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p 60 -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de
-#	python ../../../XenC/scored_sentences_to_parallel.py -i $(SORTED_FILE) -p 85 -e $(N_SENTENCES)/en -d $(N_SENTENCES)/de
-
 head_clean_xenc_and_splits: head_clean_and_xenc splits
 
 bpe:
 	$(foreach var,$(PERCENTAGES),PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh $(var);)
-#	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 10
-#	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 20
-#	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 30
-#	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 40
-#	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 60
-#	PRE_PROCESS_DIR=../.. TRAIN_DATA_DIR=$(N_SENTENCES) VALID_DATA_DIR=../wmt15-de-en BPE_DIR=../subword-nmt SRC_BPE_CODE=../wmt15-de-en/de.bpe_code TGT_BPE_CODE=../wmt15-de-en/en.bpe_code ../../bpe_encode.sh 85
 
 head_clean_xenc_splits_and_bpe: head_clean_xenc_and_splits bpe
 

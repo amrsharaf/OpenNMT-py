@@ -114,8 +114,9 @@ wmt14:
 	python translate.py -gpu 0 -model $(MODEL) -src $(WMT14_TEST_SRC) -tgt $(WMT14_TEST_TRG) -replace_unk -verbose -output $(WMT14_OUTPUT)
 	perl multi-bleu.perl $(WMT14_TEST_TRG) < $(WMT14_OUTPUT)
 
+
 all_train:
-	python train.py -data $(PT_FILE)  -save_model $(MODEL) -gpus $(GPU) -brnn
+	python train.py -data $(PT_FILE) -save_model $(MODEL) -gpus $(GPU) -brnn
 
 all: all_train
 	$(eval MODEL = $(shell ls -Art models/$(ALL_MODEL_PREFIX)* | tail -n 1))
@@ -251,7 +252,7 @@ BPE_CODE= data/wmt15-de-en/de.bpe_code
 TEST_SRC_BPE=$(TEST_SRC).bpe.wmt15
 
 evaluate:
-	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
+	python translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
 	perl multi-bleu.perl $(TEST_TRG) < $(OUTPUT)
 #	 python $(BPE_DIR)/apply_bpe.py -c $(BPE_CODE) < $(TEST_SRC) > $(TEST_SRC_BPE)
 #	python ../clean/OpenNMT-py/translate.py -gpu $(GPU) -model $(MODEL) -src $(TEST_SRC_BPE) -tgt $(TEST_TRG) -replace_unk -verbose -output $(OUTPUT)
